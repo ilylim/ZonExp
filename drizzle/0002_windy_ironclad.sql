@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "character_class" text DEFAULT 'warrior' NOT NULL;
