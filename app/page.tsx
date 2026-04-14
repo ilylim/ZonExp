@@ -110,7 +110,7 @@ function AppContent() {
       {currentScreen.name === "active-quest" && (
         <ActiveQuestScreen 
           onNavigate={navigate} 
-          quest={currentScreen.data?.quest || currentScreen.data} 
+          session={currentScreen.data}
         />
       )}
       {currentScreen.name === "reward" && (

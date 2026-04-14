@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { Screen } from "@/app/page"
+import { startQuest as createQuestSession } from "@/lib/start-quest"
 import { MapPin, Clock, X, Flag, Navigation, AlertTriangle, Bell, ChevronDown, Home, Map as MapIcon, User } from "lucide-react"
 import maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -38,6 +39,7 @@ const intensityMap = {
 
 const ROUTE_COLORS = ["#8b5cf6", "#ef4444", "#06b6d4", "#f59e0b"]
 const MAX_ACTIVE_QUESTS = 4
+const BOTTOM_NAV_OFFSET = 84
 const KRASNOYARSK_CENTER: [number, number] = [92.8700, 56.0100]
 const KRASNOYARSK_BOUNDS: [[number, number], [number, number]] = [
   [92.55, 55.83],
@@ -334,16 +336,12 @@ useEffect(() => {
     sessionStorage.setItem("quests_data", JSON.stringify({ data: optimisticQuests, timestamp: Date.now() }))
 
     try {
-      const res = await fetch("/api/quests/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questId }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw data
-      
+      const startedQuest = await createQuestSession(
+        questId,
+        optimisticQuests.find((q) => q.questId === questId)
+      )
       await fetchQuests(true)
-      onNavigate("active-quest", { quest: optimisticQuests.find(q => q.questId === questId) })
+      onNavigate("active-quest", startedQuest)
     } catch (e: any) {
       setError(e.message || "Не удалось начать квест")
       await fetchQuests(true)
@@ -361,7 +359,7 @@ useEffect(() => {
   return (
     <div className="relative min-h-screen bg-background flex flex-col">
       {/* HEADER */}
-      <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b z-10">
+      <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b z-50">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
             <MapIcon className="w-5 h-5 text-white" />
@@ -375,7 +373,7 @@ useEffect(() => {
             </Button>
             {showNotifications && (
               <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-gray-900 border rounded-lg shadow-lg z-50 py-2">
-                <div className="px-4 py-3 text-center text-sm text-muted-foreground">Уведомлений нет</div>
+                <div className="px-4 py-3 text-center text-sm text-mutedz-5reground">Уведомлений нет</div>
               </div>
             )}
           </div>
@@ -429,7 +427,10 @@ useEffect(() => {
               </div>
             </div>
             {tempLocation && (
-              <div className="absolute bottom-20 left-4 right-4 bg-white dark:bg-gray-900 rounded-xl shadow-lg p-4 z-20">
+              <div
+                className="absolute left-4 right-4 bg-white dark:bg-gray-900 rounded-xl shadow-lg p-4 z-20"
+                style={{ bottom: BOTTOM_NAV_OFFSET + 16 }}
+              >
                 <p className="text-sm font-medium mb-3">Установить здесь ваше местоположение?</p>
                 <div className="flex gap-2">
                   <Button className="flex-1" onClick={confirmLocation}>Да, здесь</Button>
@@ -455,7 +456,10 @@ useEffect(() => {
 
         {/* Quest Popup */}
         {selectedQuest && (
-          <div className="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl shadow-2xl z-30 max-h-[60vh] overflow-y-auto">
+          <div
+            className="absolute left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl shadow-2xl z-30 max-h-[60vh] overflow-y-auto"
+            style={{ bottom: BOTTOM_NAV_OFFSET }}
+          >
             <div className="sticky top-0 bg-white dark:bg-gray-900 p-4 border-b">
               <div className="w-12 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-4" />
               <div className="flex items-start justify-between">
@@ -488,18 +492,24 @@ useEffect(() => {
       </div>
 
       {/* BOTTOM NAVIGATION */}
-      <nav className="flex items-center justify-around p-3 border-t bg-white dark:bg-gray-950 z-10 shrink-0">
+      <nav className="fixed bottom-0 left-0 right-0 flex items-center justify-around p-3 border-t bg-white dark:bg-gray-950 z-40">
         <button className="flex flex-col items-center gap-1 text-purple-600">
           <Home className="w-6 h-6" />
-          <span className="text-xs font-medium">Главная</span>
+          <span className="text-xs">Главная</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors" onClick={() => onNavigate("quest-list")}>
+        <button
+          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => onNavigate("quest-list")}
+        >
           <MapIcon className="w-6 h-6" />
           <span className="text-xs">Квесты</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors" onClick={() => onNavigate("profile")}>
+        <button
+          className="flex flex-col items-center gap-1 text-muted-foreground"
+          onClick={() => onNavigate("profile")}
+        >
           <User className="w-6 h-6" />
-          <span className="text-xs">Профиль</span>
+          <span className="text-xs font-medium">Профиль</span>
         </button>
       </nav>
     </div>

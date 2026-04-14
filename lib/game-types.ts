@@ -8,6 +8,24 @@ export type QuestDto = {
   isActive: boolean
 }
 
+export type QuestWithLocation = QuestDto & {
+  routeDescription: string
+  latitude: number
+  longitude: number
+  isAssigned?: boolean
+  routeColorIndex?: number | null
+  distanceMeters?: number
+  distance?: number
+}
+
+export type StartQuestResult = {
+  sessionId: string
+  startedAt: string
+  alreadyStarted?: boolean
+  routeColorIndex?: number | null
+  quest: QuestWithLocation
+}
+
 export function intensityLabelRu(i: QuestDto["intensity"]): string {
   switch (i) {
     case "light":

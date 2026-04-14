@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { startQuest as createQuestSession } from "@/lib/start-quest"
 import type { Screen } from "@/app/page"
-import { ArrowLeft, Heart, Clock, MapPin, Gem, Trophy, Navigation, Target, Home, Map as MapIcon, User } from "lucide-react"
+import { ArrowLeft, Heart, Clock, MapPin, Gem, Trophy, Navigation, Home, Map as MapIcon, User } from "lucide-react"
 import maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 
@@ -28,11 +29,10 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
 
-  const questLocation: [number, number] = quest 
-    ? [quest.longitude, quest.latitude] 
-    : [92.8700, 56.0100]
+  const questLocation: [number, number] = quest
+    ? [quest.longitude, quest.latitude]
+    : [92.87, 56.01]
 
-  // Инициализация карты
   useEffect(() => {
     if (!mapContainer.current || !quest || map.current) return
 
@@ -47,7 +47,7 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
             type: "raster",
             tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png"],
             tileSize: 256,
-            attribution: '© OpenStreetMap',
+            attribution: "© OpenStreetMap",
           },
         },
         layers: [{ id: "osm", type: "raster", source: "osm" }],
@@ -64,7 +64,11 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
 
       map.current.addSource("route", {
         type: "geojson",
-        data: { type: "Feature", geometry: { type: "LineString", coordinates: [from, to] } },
+        data: {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [from, to] },
+        },
       })
 
       map.current.addLayer({
@@ -74,7 +78,6 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
         paint: { "line-color": "#8b5cf6", "line-width": 4, "line-opacity": 0.8, "line-dasharray": [3, 2] },
       })
 
-      // Маркеры
       if (userLocation) {
         const startEl = document.createElement("div")
         startEl.innerHTML = `<div style="width:28px;height:28px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 7.05 11.5 7.35 11.76a1 1 0 0 0 1.3 0C13 21.5 20 15.4 20 10a8 8 0 0 0-8-8Z"/></svg></div>`
@@ -93,25 +96,16 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
       map.current?.remove()
       map.current = null
     }
-  }, [quest, userLocation])
+  }, [quest, userLocation, questLocation])
 
   const startQuest = async () => {
     if (!quest) return
     setIsStarting(true)
     try {
-      const res = await fetch("/api/quests/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questId: quest.questId }),
-      })
-      const data = await res.json()
-      if (res.ok && data.sessionId) {
-        onNavigate("active-quest", data.quest)
-      } else {
-        alert(data.error || "Не удалось начать квест")
-      }
-    } catch {
-      alert("Ошибка соединения")
+      const startedQuest = await createQuestSession(quest.questId, quest)
+      onNavigate("active-quest", startedQuest)
+    } catch (error: any) {
+      alert(error.message || "Ошибка соединения")
     } finally {
       setIsStarting(false)
     }
@@ -133,23 +127,26 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
     )
   }
 
-  // Расчёт расстояния (оставлен как был)
   const distance = userLocation
-    ? Math.round(6371000 * 2 * Math.atan2(
-        Math.sqrt(
-          Math.sin(((quest.latitude - userLocation[1]) * Math.PI) / 360) ** 2 +
-            Math.cos((userLocation[1] * Math.PI) / 180) *
-              Math.cos((quest.latitude * Math.PI) / 180) *
-              Math.sin(((quest.longitude - userLocation[0]) * Math.PI) / 360) ** 2
-        ),
-        Math.sqrt(
-          1 -
-            Math.sin(((quest.latitude - userLocation[1]) * Math.PI) / 360) ** 2 +
-              Math.cos((userLocation[1] * Math.PI) / 180) *
-                Math.cos((quest.latitude * Math.PI) / 180) *
-                Math.sin(((quest.longitude - userLocation[0]) * Math.PI) / 360) ** 2
-        )
-      ))
+    ? Math.round(
+        6371000 *
+          2 *
+          Math.atan2(
+            Math.sqrt(
+              Math.sin(((quest.latitude - userLocation[1]) * Math.PI) / 360) ** 2 +
+                Math.cos((userLocation[1] * Math.PI) / 180) *
+                  Math.cos((quest.latitude * Math.PI) / 180) *
+                  Math.sin(((quest.longitude - userLocation[0]) * Math.PI) / 360) ** 2
+            ),
+            Math.sqrt(
+              1 -
+                Math.sin(((quest.latitude - userLocation[1]) * Math.PI) / 360) ** 2 +
+                  Math.cos((userLocation[1] * Math.PI) / 180) *
+                    Math.cos((quest.latitude * Math.PI) / 180) *
+                    Math.sin(((quest.longitude - userLocation[0]) * Math.PI) / 360) ** 2
+            )
+          )
+      )
     : null
 
   const formatDistance = (d: number | null) => {
@@ -160,7 +157,6 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
-      {/* HEADER */}
       <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-b shadow-sm shrink-0">
         <Button variant="ghost" size="icon" onClick={() => onNavigate("quest-list")}>
           <ArrowLeft className="w-5 h-5" />
@@ -172,7 +168,6 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20">
-        {/* QUEST INFO */}
         <div className="p-4 bg-white dark:bg-gray-900 border-b">
           <div className="flex items-center gap-3 mb-3">
             <h1 className="text-xl font-bold flex-1">{quest.title}</h1>
@@ -200,7 +195,6 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
           </div>
         </div>
 
-        {/* MAP */}
         <div className="p-4 bg-white dark:bg-gray-900 border-b">
           <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
             <Navigation className="w-5 h-5 text-purple-600" />
@@ -209,13 +203,11 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
           <div ref={mapContainer} className="w-full h-64 rounded-xl overflow-hidden border-2 border-purple-200 dark:border-purple-800" />
         </div>
 
-        {/* DESCRIPTION */}
         <div className="p-4 bg-white dark:bg-gray-900 border-b">
           <h2 className="text-lg font-semibold mb-3">О квесте</h2>
           <p className="text-sm text-muted-foreground">{quest.routeDescription}</p>
         </div>
 
-        {/* REWARD SECTION */}
         <div className="p-4 bg-white dark:bg-gray-900">
           <h2 className="text-lg font-semibold mb-3">Твоя награда</h2>
           <Card className="p-4 border-0 shadow-md">
@@ -243,7 +235,6 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
         </div>
       </main>
 
-      {/* CTA SECTION */}
       <div className="p-4 bg-white dark:bg-gray-900 border-t space-y-2 shrink-0">
         <Button
           className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
@@ -257,7 +248,6 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
         </Button>
       </div>
 
-      {/* BOTTOM NAVIGATION */}
       <nav className="fixed bottom-0 left-0 right-0 flex items-center justify-around p-3 border-t bg-white dark:bg-gray-950 z-40">
         <button
           className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"

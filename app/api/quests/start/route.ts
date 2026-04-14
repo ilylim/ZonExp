@@ -9,6 +9,19 @@ export const dynamic = "force-dynamic"
 const MAX_ACTIVE_QUESTS = 4
 const ROUTE_COLORS = ["#8b5cf6", "#ef4444", "#06b6d4", "#f59e0b"]
 
+type QuestStartPayload = {
+  questId: string
+  title: string
+  durationMinutes: number
+  intensity: "light" | "moderate" | "hard"
+  questType: "walk" | "run" | "mixed"
+  xpReward: number
+  isActive: boolean
+  routeDescription: string
+  latitude: number
+  longitude: number
+}
+
 // Функция для автоматической повторной попытки при обрыве соединения
 async function executeWithRetry<T>(fn: () => Promise<T>, retries = 5): Promise<T> {
   for (let i = 0; i < retries; i++) {
@@ -54,15 +67,35 @@ export async function POST(req: Request) {
     const db = getDb()
 
     // 1. Проверяем существование квеста и получаем его координаты из PostGIS
-    const questResult = await executeWithRetry(async () => {
-      return db.execute(
-        sql`SELECT quest_id, title, duration_minutes, intensity, quest_type, xp_reward, is_active, route_description,
-                   ST_Y(location) as latitude, ST_X(location) as longitude
+    const quest = await executeWithRetry(async (): Promise<QuestStartPayload | null> => {
+      const questRow = await db.query.quests.findFirst({
+        where: eq(quests.questId, questId),
+      })
+
+      if (!questRow) {
+        return null
+      }
+
+      const coordsResult = await db.execute(
+        sql`SELECT ST_Y(location) as latitude, ST_X(location) as longitude
             FROM quests WHERE quest_id = ${questId}`
       )
-    })
 
-    const quest = (questResult as any[])?.[0]
+      const coordsRow = (coordsResult as any).rows?.[0] ?? (coordsResult as unknown as any[])?.[0]
+
+      return {
+        questId: questRow.questId,
+        title: questRow.title,
+        durationMinutes: questRow.durationMinutes,
+        intensity: questRow.intensity,
+        questType: questRow.questType,
+        xpReward: questRow.xpReward,
+        isActive: questRow.isActive,
+        routeDescription: questRow.routeDescription,
+        latitude: Number(coordsRow?.latitude ?? 0),
+        longitude: Number(coordsRow?.longitude ?? 0),
+      }
+    })
 
     if (!quest) {
       return Response.json({ error: "Quest not found" }, { status: 404 })
@@ -84,6 +117,7 @@ export async function POST(req: Request) {
       return Response.json({
         success: true,
         sessionId: existingSession.sessionId,
+        startedAt: existingSession.startedAt.toISOString(),
         alreadyStarted: true,
         quest,
       })
@@ -142,11 +176,17 @@ export async function POST(req: Request) {
         })
       })
 
-      assignment = { userId: session.user.id, questId, routeColorIndex: colorIndex }
+      assignment = {
+        userId: session.user.id,
+        questId,
+        assignedAt: new Date(),
+        routeColorIndex: colorIndex,
+      }
     }
 
     // 4. Создаём сессию
     const sessionId = randomUUID()
+    const startedAt = new Date()
     console.log(`[StartQuest] Creating session ${sessionId} for quest ${questId}`)
 
     await executeWithRetry(async () => {
@@ -154,7 +194,7 @@ export async function POST(req: Request) {
         sessionId,
         userId: session.user.id,
         questId,
-        startedAt: new Date(),
+        startedAt,
         status: "active",
       })
     })
@@ -165,19 +205,9 @@ export async function POST(req: Request) {
     return Response.json({
       success: true,
       sessionId,
-      quest: {
-        questId: quest.quest_id,
-        title: quest.title,
-        durationMinutes: quest.duration_minutes,
-        intensity: quest.intensity,
-        questType: quest.quest_type,
-        xpReward: quest.xp_reward,
-        isActive: quest.is_active,
-        routeDescription: quest.route_description,
-        latitude: Number(quest.latitude),
-        longitude: Number(quest.longitude),
-      },
-      routeColorIndex: assignment.routeColorIndex,
+      startedAt: startedAt.toISOString(),
+      quest,
+      routeColorIndex: assignment?.routeColorIndex ?? null,
     })
   } catch (error) {
     console.error("[StartQuest] ❌ Failed to start quest:", error)

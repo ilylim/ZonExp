@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { Screen } from "@/app/page"
+import { startQuest as createQuestSession } from "@/lib/start-quest"
 import { Clock, MapPin, ChevronRight, Home, Map as MapIcon, User, Target, Flag, RefreshCw } from "lucide-react"
 
 interface QuestListScreenProps {
@@ -39,13 +40,11 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
   const [error, setError] = useState<string | null>(null)
 
   const fetchQuests = useCallback(async () => {
-    // Всегда загружаем с сервера — квесты могли измениться
     setIsLoading(true)
     setError(null)
     try {
       console.log("[QuestList] Fetching quests from API...")
 
-      // Передаём координаты — API будет использовать PostGIS для сортировки
       const url = userLocation
         ? `/api/quests?lng=${userLocation[0]}&lat=${userLocation[1]}`
         : "/api/quests"
@@ -74,19 +73,10 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
 
   const handleStartActiveQuest = async (quest: Quest) => {
     try {
-      const res = await fetch("/api/quests/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questId: quest.questId }),
-      })
-      const data = await res.json()
-      if (res.ok) {
-        onNavigate("active-quest", data.quest || quest)
-      } else {
-        alert(data.error || "Не удалось начать квест")
-      }
-    } catch {
-      console.error("Failed to start quest")
+      const startedQuest = await createQuestSession(quest.questId, quest)
+      onNavigate("active-quest", startedQuest)
+    } catch (error: any) {
+      alert(error.message || "Не удалось начать квест")
     }
   }
 
@@ -102,7 +92,6 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* HEADER */}
       <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b shrink-0">
         <h1 className="text-xl font-bold">Квесты</h1>
         <Button variant="ghost" size="icon" onClick={fetchQuests} disabled={isLoading}>
@@ -135,7 +124,6 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
 
         {!isLoading && !error && quests.length > 0 && (
           <>
-            {/* Active Quests */}
             {activeQuests.length > 0 && (
               <div className="p-4">
                 <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
@@ -156,7 +144,6 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
               </div>
             )}
 
-            {/* Available Quests */}
             <div className="p-4">
               <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
                 <Flag className="w-5 h-5 text-blue-600" />
@@ -181,7 +168,6 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
         )}
       </main>
 
-      {/* BOTTOM NAVIGATION */}
       <nav className="fixed bottom-0 left-0 right-0 flex items-center justify-around p-3 border-t bg-white dark:bg-gray-950 z-40">
         <button
           className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"

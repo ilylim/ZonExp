@@ -4,36 +4,19 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { Screen } from "@/app/page"
-import { X, MapPin, Footprints, Gem, Timer, AlertTriangle, Navigation, Home } from "lucide-react"
+import type { StartQuestResult } from "@/lib/game-types"
+import { X, Footprints, Gem, Timer, AlertTriangle, Navigation, Home, User, Map as MapIcon } from "lucide-react"
 import maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 
 interface ActiveQuestScreenProps {
   onNavigate: (screen: Screen, data?: any) => void
-  quest?: any
+  session?: StartQuestResult
 }
 
-const COMPLETION_THRESHOLD = 15 // метров
+const COMPLETION_THRESHOLD = 15
+const GPS_ACCURACY_THRESHOLD = 500
 
-// OSRM API для построения маршрута по дорогам
-async function fetchRoute(start: [number, number], end: [number, number]) {
-  try {
-    const url = `https://router.project-osrm.org/route/v1/foot/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`
-    const res = await fetch(url)
-    const data = await res.json()
-    if (data.code === "Ok" && data.routes?.[0]) {
-      return {
-        geometry: data.routes[0].geometry,
-        distance: data.routes[0].distance, // метры
-      }
-    }
-  } catch (e) {
-    console.warn("OSRM routing error:", e)
-  }
-  return null
-}
-
-// Расстояние по Haversine
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000
   const dLat = ((lat2 - lat1) * Math.PI) / 180
@@ -42,73 +25,89 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-export function ActiveQuestScreen({ onNavigate, quest }: ActiveQuestScreenProps) {
-  const [time, setTime] = useState(0)
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null)
+export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProps) {
+  const quest = session?.quest
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [fallbackLocation] = useState<[number, number] | null>(() => {
+    if (typeof window === "undefined") return null
+    try {
+      const saved = localStorage.getItem("user_location")
+      return saved ? JSON.parse(saved) : null
+    } catch {
+      return null
+    }
+  })
+  const [gpsLocation, setGpsLocation] = useState<[number, number] | null>(null)
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null
+    try {
+      const saved = localStorage.getItem("location_accuracy")
+      return saved ? Number(saved) : null
+    } catch {
+      return null
+    }
+  })
   const [routeGeometry, setRouteGeometry] = useState<any>(null)
-  const [routeDistance, setRouteDistance] = useState(0)
+  const [distanceToTarget, setDistanceToTarget] = useState(0)
   const [distanceTraveled, setDistanceTraveled] = useState(0)
   const [showWarning, setShowWarning] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
-
-  console.log("[ActiveQuest] Rendered with quest:", quest ? {
-    id: quest.questId,
-    title: quest.title,
-    lat: quest.latitude,
-    lng: quest.longitude,
-  } : "NO QUEST")
+  const [mapError, setMapError] = useState<string | null>(null)
 
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
   const prevLocation = useRef<[number, number] | null>(null)
   const watchId = useRef<number | null>(null)
   const userMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const destinationMarkerRef = useRef<maplibregl.Marker | null>(null)
 
-  // Проверяем, рядом ли пользователь с точкой назначения
+  const hasAccurateGps = gpsLocation && gpsAccuracy !== null && gpsAccuracy <= GPS_ACCURACY_THRESHOLD
+  const currentLocation = hasAccurateGps ? gpsLocation : fallbackLocation
+
   const isNearDestination = useCallback(() => {
-    if (!userLocation || !quest) return false
-    const dist = haversineDistance(userLocation[1], userLocation[0], quest.latitude, quest.longitude)
+    if (!currentLocation || !quest) return false
+    const dist = haversineDistance(currentLocation[1], currentLocation[0], quest.latitude, quest.longitude)
     return dist <= COMPLETION_THRESHOLD
-  }, [userLocation, quest])
+  }, [currentLocation, quest])
 
-  // Получаем маршрут OSRM при наличии позиции
   useEffect(() => {
-    if (!userLocation || !quest) return
+    const startedAtMs = session?.startedAt ? new Date(session.startedAt).getTime() : Date.now()
+    const updateElapsed = () => {
+      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)))
+    }
+    updateElapsed()
+    const timer = window.setInterval(updateElapsed, 1000)
+    return () => window.clearInterval(timer)
+  }, [session?.startedAt])
 
-    fetchRoute(userLocation, [quest.longitude, quest.latitude]).then((result) => {
-      if (result) {
-        setRouteGeometry(result.geometry)
-        setRouteDistance(result.distance)
-      } else {
-        // Fallback: прямая линия
-        const directDist = haversineDistance(userLocation[1], userLocation[0], quest.latitude, quest.longitude)
-        setRouteDistance(directDist)
-      }
-    })
-  }, [userLocation, quest])
-
-  // Отслеживаем GPS
   useEffect(() => {
     if (!navigator.geolocation) return
 
     watchId.current = navigator.geolocation.watchPosition(
       (pos) => {
         const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
+        const accuracy = pos.coords.accuracy ?? null
+        setGpsAccuracy(accuracy)
 
-        // Считаем пройденное расстояние
+        if (accuracy !== null && accuracy > GPS_ACCURACY_THRESHOLD) {
+          return
+        }
+
         if (prevLocation.current) {
           const segment = haversineDistance(
-            prevLocation.current[1], prevLocation.current[0],
-            coords[1], coords[0]
+            prevLocation.current[1],
+            prevLocation.current[0],
+            coords[1],
+            coords[0]
           )
           setDistanceTraveled((prev) => prev + segment)
         }
 
         prevLocation.current = coords
-        setUserLocation(coords)
+        setGpsLocation(coords)
       },
       (err) => console.warn("GPS error:", err),
-      { enableHighAccuracy: true, maximumAge: 2000 }
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     )
 
     return () => {
@@ -116,126 +115,207 @@ export function ActiveQuestScreen({ onNavigate, quest }: ActiveQuestScreenProps)
     }
   }, [])
 
-  // Таймер
   useEffect(() => {
-    const timer = setInterval(() => setTime((t) => t + 1), 1000)
-    return () => clearInterval(timer)
-  }, [])
+    if (!quest || !currentLocation) return
 
-  // Инициализация карты
-  useEffect(() => {
-    if (!mapContainer.current || !quest) {
-      console.log("[ActiveQuestMap] Waiting for container or quest:", {
-        hasContainer: !!mapContainer.current,
-        hasQuest: !!quest,
-      })
-      return
+    const controller = new AbortController()
+
+    const loadRoute = async () => {
+      try {
+        const res = await fetch(
+          `/api/quests/${quest.questId}/route?lng=${currentLocation[0]}&lat=${currentLocation[1]}`,
+          { signal: controller.signal }
+        )
+        const data = await res.json()
+
+        if (!res.ok) {
+          throw new Error(data.error || "Не удалось построить маршрут")
+        }
+
+        setRouteGeometry(data.route)
+        setDistanceToTarget(data.distanceMeters || 0)
+      } catch (error: any) {
+        if (error.name === "AbortError") return
+
+        console.error("[ActiveQuest] Route error:", error)
+        setRouteGeometry({
+          type: "LineString",
+          coordinates: [currentLocation, [quest.longitude, quest.latitude]],
+        })
+        setDistanceToTarget(
+          Math.round(haversineDistance(currentLocation[1], currentLocation[0], quest.latitude, quest.longitude))
+        )
+      }
     }
-    if (map.current) return
 
-    console.log("[ActiveQuestMap] Initializing map for quest:", quest.title, quest.latitude, quest.longitude)
+    loadRoute()
+    return () => controller.abort()
+  }, [quest, currentLocation])
 
-    const center: [number, number] = userLocation || [quest.longitude, quest.latitude]
+  // ИНИЦИАЛИЗАЦИЯ КАРТЫ
+  useEffect(() => {
+    if (!mapContainer.current || !quest || map.current) return
 
-    map.current = new maplibregl.Map({
-      container: mapContainer.current,
-      style: {
-        version: 8,
-        sources: {
-          osm: {
-            type: "raster",
-            tiles: [
-              "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-              "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            ],
-            tileSize: 256,
-            attribution: "© OpenStreetMap",
+    const center = currentLocation || [quest.longitude, quest.latitude]
+
+    // Оборачиваем в requestAnimationFrame, чтобы контейнер успел получить реальные размеры от браузера
+    const initMap = () => {
+      if (!mapContainer.current) return
+
+      map.current = new maplibregl.Map({
+        container: mapContainer.current,
+        style: {
+          version: 8,
+          sources: {
+            osm: {
+              type: "raster",
+              tiles: [
+                "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              ],
+              tileSize: 256,
+              attribution: "© OpenStreetMap",
+            },
           },
+          layers: [{ id: "osm", type: "raster", source: "osm" }],
         },
-        layers: [{ id: "osm", type: "raster", source: "osm" }],
-      },
-      center,
-      zoom: 14,
-    })
+        center,
+        zoom: 14,
+        fadeDuration: 0,
+      })
 
-    map.current.on("load", () => {
-      console.log("[ActiveQuestMap] Map loaded successfully")
-    })
+      map.current.on("load", () => {
+        if (!map.current || !quest) return
+        setMapError(null)
+        map.current.resize()
+      })
 
-    map.current.on("error", (e) => {
-      console.error("[ActiveQuestMap] Map error:", e.error)
-    })
+      map.current.on("error", (e) => {
+        console.error("[ActiveQuestMap] Map error:", e.error)
+        setMapError("Ошибка загрузки карты")
+      })
+    }
+
+    const rafId = requestAnimationFrame(initMap)
 
     return () => {
+      cancelAnimationFrame(rafId)
+      userMarkerRef.current?.remove()
+      destinationMarkerRef.current?.remove()
       map.current?.remove()
       map.current = null
     }
-  }, [quest])
+  }, [quest, currentLocation])
 
-  // Обновляем маркеры и маршрут на карте
+  // ОТРИСОВКА МАРШРУТА И МАРКЕРОВ
   useEffect(() => {
     if (!map.current || !quest) return
 
-    // Удаляем старые слои
-    ["route-line", "user-marker", "dest-marker"].forEach((id) => {
-      if (map.current!.getLayer(id)) map.current!.removeLayer(id)
-      if (map.current!.getSource(id)) map.current!.removeSource(id)
-    })
-    userMarkerRef.current?.remove()
-    userMarkerRef.current = null
+    const updateMapData = () => {
+      if (!map.current) return
 
-    // Линия маршрута
-    if (routeGeometry) {
-      map.current.addSource("route-line", {
-        type: "geojson",
-        data: { type: "Feature", geometry: routeGeometry },
-      })
-      map.current.addLayer({
-        id: "route-line",
-        type: "line",
-        source: "route-line",
-        paint: { "line-color": "#8b5cf6", "line-width": 5, "line-opacity": 0.8 },
-      })
-    }
+      const routeId = "route"
+      const routeLayerId = "route-line"
 
-    // Маркер пользователя
-    if (userLocation) {
-      const userEl = document.createElement("div")
-      userEl.innerHTML = `<div style="width:16px;height:16px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>`
-      userMarkerRef.current = new maplibregl.Marker({ element: userEl })
-        .setLngLat(userLocation)
-        .addTo(map.current!)
-    }
+      if (map.current.getLayer(routeLayerId)) {
+        map.current.removeLayer(routeLayerId)
+      }
+      if (map.current.getSource(routeId)) {
+        map.current.removeSource(routeId)
+      }
 
-    // Маркер назначения
-    const destEl = document.createElement("div")
-    destEl.innerHTML = `<div style="width:20px;height:20px;background:#ef4444;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>`
-    new maplibregl.Marker({ element: destEl })
-      .setLngLat([quest.longitude, quest.latitude])
-      .addTo(map.current!)
+      if (routeGeometry) {
+        map.current.addSource(routeId, {
+          type: "geojson",
+          data: {
+            type: "Feature",
+            properties: {},
+            geometry: routeGeometry,
+          },
+        })
 
-    // Показываем весь маршрут
-    if (userLocation) {
+        map.current.addLayer({
+          id: routeLayerId,
+          type: "line",
+          source: routeId,
+          paint: { "line-color": "#8b5cf6", "line-width": 4, "line-opacity": 0.8, "line-dasharray": [3, 2] },
+        })
+      }
+
+      userMarkerRef.current?.remove()
+      destinationMarkerRef.current?.remove()
+
+      if (currentLocation) {
+        const startEl = document.createElement("div")
+        startEl.innerHTML = `<div style="width:28px;height:28px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 7.05 11.5 7.35 11.76a1 1 0 0 0 1.3 0C13 21.5 20 15.4 20 10a8 8 0 0 0-8-8Z"/></svg></div>`
+        userMarkerRef.current = new maplibregl.Marker({ element: startEl }).setLngLat(currentLocation).addTo(map.current)
+      }
+
+      const finishEl = document.createElement("div")
+      finishEl.innerHTML = `<div style="width:32px;height:32px;background:#8b5cf6;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>`
+      destinationMarkerRef.current = new maplibregl.Marker({ element: finishEl })
+        .setLngLat([quest.longitude, quest.latitude])
+        .addTo(map.current)
+
       const bounds = new maplibregl.LngLatBounds()
-      bounds.extend(userLocation)
+      if (currentLocation) {
+        bounds.extend(currentLocation)
+      }
       bounds.extend([quest.longitude, quest.latitude])
-      map.current.fitBounds(bounds, { padding: 50, maxZoom: 16 })
+      map.current.fitBounds(bounds, { padding: 60, maxZoom: 15 })
     }
-  }, [routeGeometry, userLocation, quest])
+
+    // ПРАВИЛЬНАЯ проверка загрузки стиля:
+    // Если стиль уже загружен — рисуем сразу. Если нет — ждем событие 'load'.
+    if (map.current.isStyleLoaded()) {
+      updateMapData()
+    } else {
+      map.current.once('load', updateMapData)
+    }
+
+    return () => {
+      map.current?.off('load', updateMapData)
+    }
+  }, [quest, currentLocation, routeGeometry])
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        requestAnimationFrame(() => map.current?.resize())
+      }
+    }
+
+    const handleFocus = () => {
+      requestAnimationFrame(() => map.current?.resize())
+    }
+
+    document.addEventListener("visibilitychange", handleVisibility)
+    window.addEventListener("focus", handleFocus)
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility)
+      window.removeEventListener("focus", handleFocus)
+    }
+  }, [])
 
   const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60)
+    const hrs = Math.floor(seconds / 3600)
+    const mins = Math.floor((seconds % 3600) / 60)
     const secs = seconds % 60
+    if (hrs > 0) {
+      return `${hrs.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+    }
     return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
   }
 
-  // Расчет текущего XP (% от пройденного расстояния маршрута)
-  const progressPercent = routeDistance > 0 ? Math.min((distanceTraveled / routeDistance) * 100, 100) : 0
-  const currentXp = Math.round((progressPercent / 100) * quest.xpReward)
   const nearDestination = isNearDestination()
+  const progressPercent = distanceToTarget > 0
+    ? Math.max(0, Math.min((distanceTraveled / (distanceTraveled + distanceToTarget)) * 100, 100))
+    : nearDestination ? 100 : 0
+  const currentXp = quest ? Math.round((progressPercent / 100) * quest.xpReward) : 0
 
   const handleCompleteQuest = async () => {
-    if (isCompleting) return
+    if (!quest || isCompleting) return
     setIsCompleting(true)
 
     const successful = nearDestination
@@ -244,7 +324,12 @@ export function ActiveQuestScreen({ onNavigate, quest }: ActiveQuestScreenProps)
       const res = await fetch("/api/quest-complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questId: quest.questId, successful }),
+        body: JSON.stringify({
+          questId: quest.questId,
+          successful,
+          userLat: currentLocation?.[1],
+          userLng: currentLocation?.[0],
+        }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -260,10 +345,6 @@ export function ActiveQuestScreen({ onNavigate, quest }: ActiveQuestScreenProps)
     }
   }
 
-  const handleClose = () => {
-    onNavigate("quest-map")
-  }
-
   if (!quest) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -274,51 +355,73 @@ export function ActiveQuestScreen({ onNavigate, quest }: ActiveQuestScreenProps)
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* HEADER */}
       <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b shrink-0">
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate">{quest.title}</h1>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 dark:bg-purple-900/20 rounded-full shrink-0">
           <Timer className="w-4 h-4 text-purple-600" />
-          <span className="font-mono font-semibold text-purple-600 text-sm">{formatTime(time)}</span>
+          <span className="font-mono font-semibold text-purple-600 text-sm">{formatTime(elapsedSeconds)}</span>
         </div>
-        <button onClick={handleClose} className="p-2 hover:bg-muted rounded-full transition-colors shrink-0">
+        <button onClick={() => onNavigate("quest-map")} className="p-2 hover:bg-muted rounded-full transition-colors shrink-0">
           <X className="w-5 h-5" />
         </button>
       </header>
 
-      {/* MAP */}
-      <div className="relative w-full h-72 bg-gray-100 dark:bg-gray-800">
-        <div ref={mapContainer} className="absolute inset-0" />
-      </div>
-
-      {/* PROGRESS */}
-      <div className="p-4 bg-white dark:bg-gray-900 border-b">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Footprints className="w-5 h-5 text-blue-600" />
-            <span className="text-sm font-medium">{Math.round(distanceTraveled)} м / {Math.round(routeDistance)} м</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Gem className="w-5 h-5 text-purple-600" />
-            <span className="text-sm font-medium text-purple-600">+{currentXp} XP</span>
+      <main className="flex-1 overflow-y-auto">
+        <div className="p-4 bg-white dark:bg-gray-900 border-b">
+          <div className="w-full h-64 rounded-xl overflow-hidden border-2 border-purple-200 dark:border-purple-800 relative">
+            {/* ДОБАВЛЕН ЯВНЫЙ STYLE ДЛЯ РАЗМЕРОВ */}
+            <div ref={mapContainer} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
+            {mapError && (
+              <div className="absolute top-3 left-3 right-3 z-10 rounded-lg bg-white/90 px-3 py-2 text-sm shadow">
+                {mapError}
+              </div>
+            )}
           </div>
         </div>
-        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-full transition-all duration-500"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-        {nearDestination && (
-          <p className="text-center text-sm text-green-600 font-medium mt-2">
-            ✓ Вы у точки назначения! Можете завершить квест.
-          </p>
-        )}
-      </div>
 
-      {/* WARNING DIALOG (досрочное завершение) */}
+        <div className="p-4 bg-white dark:bg-gray-900 border-b">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Footprints className="w-5 h-5 text-blue-600" />
+              <span className="text-sm font-medium">{Math.round(distanceToTarget)} м до цели</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Gem className="w-5 h-5 text-purple-600" />
+              <span className="text-sm font-medium text-purple-600">+{currentXp} XP</span>
+            </div>
+          </div>
+          <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-full transition-all duration-500"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          {nearDestination && (
+            <p className="text-center text-sm text-green-600 font-medium mt-2">
+              Вы у точки назначения. Можно завершить квест.
+            </p>
+          )}
+        </div>
+
+        <div className="p-4 bg-white dark:bg-gray-900 border-b">
+          <Button
+            className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+            onClick={() => {
+              if (nearDestination) {
+                handleCompleteQuest()
+              } else {
+                setShowWarning(true)
+              }
+            }}
+            disabled={isCompleting}
+          >
+            Завершить квест
+          </Button>
+        </div>
+      </main>
+
       {showWarning && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <Card className="w-full max-w-sm p-6 space-y-4">
@@ -330,7 +433,7 @@ export function ActiveQuestScreen({ onNavigate, quest }: ActiveQuestScreenProps)
             </div>
             <p className="text-sm text-muted-foreground">
               Вы получите только <span className="font-semibold text-purple-600">+{currentXp} XP</span> из{" "}
-              <span className="font-semibold">{quest.xpReward} XP</span> ({Math.round(progressPercent)}% пройдено). 
+              <span className="font-semibold">{quest.xpReward} XP</span> ({Math.round(progressPercent)}% пройдено).
               Квест вернётся в доступные.
             </p>
             <div className="flex gap-3">
@@ -345,35 +448,17 @@ export function ActiveQuestScreen({ onNavigate, quest }: ActiveQuestScreenProps)
         </div>
       )}
 
-      {/* COMPLETE BUTTON */}
-      <div className="p-4 bg-white dark:bg-gray-900 border-t shrink-0">
-        <Button
-          className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-          onClick={() => {
-            if (nearDestination) {
-              handleCompleteQuest()
-            } else {
-              setShowWarning(true)
-            }
-          }}
-          disabled={isCompleting}
-        >
-          {nearDestination ? "✓ Завершить квест" : "Завершить квест"}
-        </Button>
-      </div>
-
-      {/* BOTTOM NAVIGATION */}
       <nav className="flex items-center justify-around p-3 border-t bg-white dark:bg-gray-950 shrink-0">
-        <button className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors" onClick={handleClose}>
+        <button className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors" onClick={() => onNavigate("quest-map")}>
           <Home className="w-6 h-6" />
           <span className="text-xs">Главная</span>
         </button>
         <button className="flex flex-col items-center gap-1 text-purple-600" onClick={() => onNavigate("quest-list")}>
-          <Navigation className="w-6 h-6" />
+          <MapIcon className="w-6 h-6" />
           <span className="text-xs font-medium">Квесты</span>
         </button>
         <button className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors" onClick={() => onNavigate("profile")}>
-          <MapPin className="w-6 h-6" />
+          <User className="w-6 h-6" />
           <span className="text-xs">Профиль</span>
         </button>
       </nav>
