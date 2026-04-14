@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { Screen } from "@/app/page"
 import type { StartQuestResult } from "@/lib/game-types"
-import { X, Footprints, Gem, Timer, AlertTriangle, Navigation, Home, User, Map as MapIcon } from "lucide-react"
+import { X, Footprints, Gem, Timer, AlertTriangle, Navigation, Home, User, Map as MapIcon, ChevronDown, MapPin } from "lucide-react"
 import maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 
@@ -14,7 +14,7 @@ interface ActiveQuestScreenProps {
   session?: StartQuestResult
 }
 
-const COMPLETION_THRESHOLD = 15
+const COMPLETION_THRESHOLD = 40
 const GPS_ACCURACY_THRESHOLD = 500
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -28,7 +28,7 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProps) {
   const quest = session?.quest
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const [fallbackLocation] = useState<[number, number] | null>(() => {
+  const [fallbackLocation, setFallbackLocation] = useState<[number, number] | null>(() => {
     if (typeof window === "undefined") return null
     try {
       const saved = localStorage.getItem("user_location")
@@ -50,9 +50,13 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
   const [routeGeometry, setRouteGeometry] = useState<any>(null)
   const [distanceToTarget, setDistanceToTarget] = useState(0)
   const [distanceTraveled, setDistanceTraveled] = useState(0)
+  // Устанавливается от сессии, которая пришла с сервера
+  const [initialDistance, setInitialDistance] = useState(session?.initialDistanceMeters || 0)
   const [showWarning, setShowWarning] = useState(false)
   const [isCompleting, setIsCompleting] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
+  const [isSelectingLocation, setIsSelectingLocation] = useState(false)
+  const [tempLocation, setTempLocation] = useState<[number, number] | null>(null)
 
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
@@ -60,6 +64,7 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
   const watchId = useRef<number | null>(null)
   const userMarkerRef = useRef<maplibregl.Marker | null>(null)
   const destinationMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const tempMarkerRef = useRef<maplibregl.Marker | null>(null)
 
   const hasAccurateGps = gpsLocation && gpsAccuracy !== null && gpsAccuracy <= GPS_ACCURACY_THRESHOLD
   const currentLocation = hasAccurateGps ? gpsLocation : fallbackLocation
@@ -133,7 +138,12 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
         }
 
         setRouteGeometry(data.route)
-        setDistanceToTarget(data.distanceMeters || 0)
+        const distance = data.distanceMeters || 0
+        setDistanceToTarget(distance)
+        // Устанавливаем начальное расстояние только если оно еще не установлено из сессии
+        if (initialDistance === 0 && distance > 0) {
+          setInitialDistance(distance)
+        }
       } catch (error: any) {
         if (error.name === "AbortError") return
 
@@ -142,15 +152,18 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
           type: "LineString",
           coordinates: [currentLocation, [quest.longitude, quest.latitude]],
         })
-        setDistanceToTarget(
-          Math.round(haversineDistance(currentLocation[1], currentLocation[0], quest.latitude, quest.longitude))
-        )
+        const distance = Math.round(haversineDistance(currentLocation[1], currentLocation[0], quest.latitude, quest.longitude))
+        setDistanceToTarget(distance)
+        // Устанавливаем начальное расстояние только если оно еще не установлено из сессии
+        if (initialDistance === 0 && distance > 0) {
+          setInitialDistance(distance)
+        }
       }
     }
 
     loadRoute()
     return () => controller.abort()
-  }, [quest, currentLocation])
+  }, [quest, currentLocation, initialDistance])
 
   // ИНИЦИАЛИЗАЦИЯ КАРТЫ
   useEffect(() => {
@@ -278,6 +291,49 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
     }
   }, [quest, currentLocation, routeGeometry])
 
+  // Режим ручного выбора локации на карте
+  useEffect(() => {
+    if (!map.current || !isSelectingLocation) return
+
+    const handleClick = (e: maplibregl.MapMouseEvent) => {
+      const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+      setTempLocation(coords)
+
+      tempMarkerRef.current?.remove()
+      const el = document.createElement("div")
+      el.innerHTML = `<div style="width:24px;height:24px;background:#10b981;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>`
+      tempMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat(coords).addTo(map.current!)
+    }
+
+    map.current.on("click", handleClick)
+    map.current.getCanvas().style.cursor = "crosshair"
+
+    return () => {
+      map.current?.off("click", handleClick)
+      if (map.current) map.current.getCanvas().style.cursor = ""
+    }
+  }, [isSelectingLocation])
+
+  const confirmLocation = () => {
+    if (!tempLocation) return
+    localStorage.setItem("user_location", JSON.stringify(tempLocation))
+    setFallbackLocation(tempLocation)
+    setIsSelectingLocation(false)
+    setTempLocation(null)
+    tempMarkerRef.current?.remove()
+    tempMarkerRef.current = null
+    // Сбрасываем предыдущую локацию, чтобы расстояние считалось заново
+    prevLocation.current = null
+  }
+
+  const cancelLocationSelection = () => {
+    setIsSelectingLocation(false)
+    setTempLocation(null)
+    tempMarkerRef.current?.remove()
+    tempMarkerRef.current = null
+    if (map.current) map.current.getCanvas().style.cursor = ""
+  }
+
   useEffect(() => {
     const handleVisibility = () => {
       if (!document.hidden) {
@@ -312,7 +368,12 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
   const progressPercent = distanceToTarget > 0
     ? Math.max(0, Math.min((distanceTraveled / (distanceTraveled + distanceToTarget)) * 100, 100))
     : nearDestination ? 100 : 0
-  const currentXp = quest ? Math.round((progressPercent / 100) * quest.xpReward) : 0
+
+  const currentXp = (quest && initialDistance > 0)
+    ? (nearDestination 
+        ? (quest.xpReward ?? 0) 
+        : Math.round(Math.max(0, (initialDistance - distanceToTarget) / initialDistance) * (quest.xpReward ?? 0)))
+    : 0;
 
   const handleCompleteQuest = async () => {
     if (!quest || isCompleting) return
@@ -369,7 +430,7 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
       </header>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="p-4 bg-white dark:bg-gray-900 border-b">
+        <div className="p-4 bg-white dark:bg-gray-900 border-b relative">
           <div className="w-full h-64 rounded-xl overflow-hidden border-2 border-purple-200 dark:border-purple-800 relative">
             {/* ДОБАВЛЕН ЯВНЫЙ STYLE ДЛЯ РАЗМЕРОВ */}
             <div ref={mapContainer} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
@@ -378,6 +439,33 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
                 {mapError}
               </div>
             )}
+
+            {/* Selection UI */}
+            {isSelectingLocation && (
+              <>
+                <div className="absolute top-3 left-3 right-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-2 z-10">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs text-blue-800 dark:text-blue-200">Нажмите на карту для выбора локации</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Center/Select Button */}
+            <button
+              onClick={() => {
+                if (isSelectingLocation) {
+                  cancelLocationSelection()
+                } else {
+                  setIsSelectingLocation(true)
+                  setTempLocation(null)
+                }
+              }}
+              className="absolute bottom-3 right-3 z-10 w-10 h-10 bg-white dark:bg-gray-900 rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              <Navigation className="w-5 h-5 text-purple-600" />
+            </button>
           </div>
         </div>
 
@@ -421,6 +509,17 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
           </Button>
         </div>
       </main>
+
+      {/* Location Confirmation Modal */}
+      {isSelectingLocation && tempLocation && (
+        <div className="fixed bottom-20 left-4 right-4 bg-white dark:bg-gray-900 rounded-xl shadow-lg p-4 z-20">
+          <p className="text-sm font-medium mb-3">Установить здесь ваше местоположение?</p>
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={confirmLocation}>Да, здесь</Button>
+            <Button variant="outline" className="flex-1" onClick={cancelLocationSelection}>Отмена</Button>
+          </div>
+        </div>
+      )}
 
       {showWarning && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

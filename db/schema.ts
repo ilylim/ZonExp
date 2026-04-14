@@ -77,6 +77,8 @@ export const questSessions = pgTable("quest_sessions", {
   startedAt: timestamp("started_at", { mode: "date" }).notNull().defaultNow(),
   completedAt: timestamp("completed_at", { mode: "date" }),
   status: questSessionStatusEnum("status").notNull().default("active"),
+  // Начальное расстояние при старте квеста (в метрах) - для расчета XP
+  initialDistanceMeters: integer("initial_distance_meters").notNull().default(0),
 })
 
 // Active quest assignments — tracks which quests a user has accepted (max 4)

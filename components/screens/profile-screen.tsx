@@ -32,7 +32,7 @@ const badges = [
 ]
 
 export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userXp, userCompletedQuests }: ProfileScreenProps) {
-  const xpForNextLevel = userLevel * 300
+  const xpForNextLevel = userLevel * 500
   const xpPercentage = Math.min((userXp / xpForNextLevel) * 100, 100)
   const [showSettings, setShowSettings] = useState(false)
 

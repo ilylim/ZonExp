@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
-import { eq, sql } from "drizzle-orm"
+import { eq, sql, and } from "drizzle-orm"
 import { getDb } from "@/db"
-import { quests, userQuestAssignments } from "@/db/schema"
+import { quests, userQuestAssignments, questSessions } from "@/db/schema"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +16,24 @@ export async function GET(req: Request) {
     const url = new URL(req.url)
     const userLng = url.searchParams.get("lng")
     const userLat = url.searchParams.get("lat")
+
+    // Получаем ID выполненных квестов для пользователя (только со статусом 'completed')
+    const userId = session?.user?.id
+    let completedQuestIds: string[] = []
+
+    if (userId) {
+      const completedSessions = await db
+        .select({ questId: questSessions.questId })
+        .from(questSessions)
+        .where(and(
+          eq(questSessions.userId, userId),
+          eq(questSessions.status, "completed")
+        ))
+
+      completedQuestIds = completedSessions
+        .filter((s) => s.questId !== null)
+        .map((s) => s.questId as string)
+    }
 
     let questsList: any[]
 
@@ -33,20 +51,26 @@ export async function GET(req: Request) {
           xpReward: quests.xpReward,
           isActive: quests.isActive,
           routeDescription: quests.routeDescription,
-          // Извлекаем lat/lng из PostGIS geometry
           latitude: sql<number>`ST_Y(${quests.location})`.as("latitude"),
           longitude: sql<number>`ST_X(${quests.location})`.as("longitude"),
-          // Расстояние в метрах через PostGIS
           distanceMeters: sql<number>`ST_Distance(${quests.location}::geography, ${userPoint}::geography)`.as("distance_meters"),
         })
         .from(quests)
         .where(eq(quests.isActive, true))
-        .orderBy(sql`distance_meters ASC`)
+
+      // Исключаем выполненные квесты
+      if (completedQuestIds.length > 0) {
+        questsList = questsList.filter(
+          (q) => !completedQuestIds.includes(q.questId)
+        )
+      }
+
+      questsList = questsList.sort((a, b) => (a.distanceMeters || 0) - (b.distanceMeters || 0))
 
       console.log(`[API] Found ${questsList.length} quests, sorted by PostGIS distance from (${userLat}, ${userLng})`)
     } else {
-      // Без координат — просто все активные квесты
-      questsList = await db
+      // Без координат — просто все активные квесты, исключая выполненные
+      const baseQuery = db
         .select({
           questId: quests.questId,
           title: quests.title,
@@ -60,13 +84,22 @@ export async function GET(req: Request) {
           longitude: sql<number>`ST_X(${quests.location})`.as("longitude"),
         })
         .from(quests)
-        .where(eq(quests.isActive, true))
+
+      let filteredQuests = await baseQuery.where(eq(quests.isActive, true))
+
+      // Исключаем выполненные квесты
+      if (completedQuestIds.length > 0) {
+        filteredQuests = filteredQuests.filter(
+          (q) => !completedQuestIds.includes(q.questId)
+        )
+      }
+
+      questsList = filteredQuests
 
       console.log(`[API] Found ${questsList.length} quests (no location, unsorted)`)
     }
 
     // Получаем назначения пользователя
-    const userId = session?.user?.id
     let assignments: { questId: string; routeColorIndex: number }[] = []
 
     if (userId) {

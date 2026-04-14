@@ -56,13 +56,13 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json()
-    const { questId } = body
+    const { questId, initialDistanceMeters } = body
 
     if (!questId) {
       return Response.json({ error: "questId is required" }, { status: 400 })
     }
 
-    console.log(`[StartQuest] Starting quest ${questId} for user ${session.user.id}`)
+    console.log(`[StartQuest] Starting quest ${questId} for user ${session.user.id}, initialDistance: ${initialDistanceMeters}m`)
 
     const db = getDb()
 
@@ -120,6 +120,7 @@ export async function POST(req: Request) {
         startedAt: existingSession.startedAt.toISOString(),
         alreadyStarted: true,
         quest,
+        initialDistanceMeters: existingSession.initialDistanceMeters,
       })
     }
 
@@ -196,6 +197,7 @@ export async function POST(req: Request) {
         questId,
         startedAt,
         status: "active",
+        initialDistanceMeters: initialDistanceMeters ? Math.round(initialDistanceMeters) : null,
       })
     })
 
@@ -208,6 +210,7 @@ export async function POST(req: Request) {
       startedAt: startedAt.toISOString(),
       quest,
       routeColorIndex: assignment?.routeColorIndex ?? null,
+      initialDistanceMeters: initialDistanceMeters ? Math.round(initialDistanceMeters) : null,
     })
   } catch (error) {
     console.error("[StartQuest] ❌ Failed to start quest:", error)

@@ -24,6 +24,7 @@ export type StartQuestResult = {
   alreadyStarted?: boolean
   routeColorIndex?: number | null
   quest: QuestWithLocation
+  initialDistanceMeters?: number
 }
 
 export function intensityLabelRu(i: QuestDto["intensity"]): string {
