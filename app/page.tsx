@@ -52,9 +52,9 @@ function AppContent() {
 
   const handleLogout = useCallback(async () => {
     const { signOut } = await import("next-auth/react")
-    await signOut({ redirect: false, callbackUrl: "/login" })
-    window.location.href = "/login"
-  }, [])
+    await signOut({ redirect: false })
+    navigate("login")
+  }, [navigate])
 
   if (isLoading) {
     return (

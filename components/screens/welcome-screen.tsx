@@ -111,7 +111,7 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* HEADER */}
-      <header className="p-4 bg-white dark:bg-gray-950">
+      <header className="sticky top-0 z-10 p-4 bg-white dark:bg-gray-950 border-b">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
             <Crown className="w-5 h-5 text-white" />

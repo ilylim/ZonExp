@@ -416,7 +416,7 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b shrink-0">
+      <header className="sticky top-0 z-10 flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b shrink-0">
         <div className="flex-1 min-w-0">
           <h1 className="text-lg font-bold truncate">{quest.title}</h1>
         </div>
@@ -430,15 +430,13 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
       </header>
 
       <main className="flex-1 overflow-y-auto">
-        <div className="p-4 bg-white dark:bg-gray-900 border-b relative">
-          <div className="w-full h-64 rounded-xl overflow-hidden border-2 border-purple-200 dark:border-purple-800 relative">
-            {/* ДОБАВЛЕН ЯВНЫЙ STYLE ДЛЯ РАЗМЕРОВ */}
-            <div ref={mapContainer} className="absolute inset-0" style={{ width: '100%', height: '100%' }} />
-            {mapError && (
-              <div className="absolute top-3 left-3 right-3 z-10 rounded-lg bg-white/90 px-3 py-2 text-sm shadow">
-                {mapError}
-              </div>
-            )}
+        <div className="p-4 bg-white dark:bg-gray-900 border-b relative flex-1 flex flex-col">
+          <div className="relative flex-1 min-h-[50vh]">
+        <div 
+          ref={mapContainer} 
+          className="absolute inset-0 bg-gray-100 dark:bg-gray-800"
+          style={{ minHeight: "calc(100vh - 350px)" }}
+        />
 
             {/* Selection UI */}
             {isSelectingLocation && (

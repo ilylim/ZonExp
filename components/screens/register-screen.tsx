@@ -123,7 +123,7 @@ export function RegisterScreen({ onNavigate }: RegisterScreenProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-950 dark:to-gray-900 flex flex-col">
       {/* HEADER */}
-      <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b">
+      <header className="sticky top-0 z-10 flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b">
         <button
           onClick={() => onNavigate("welcome")}
           className="text-sm text-muted-foreground hover:text-foreground transition-colors"

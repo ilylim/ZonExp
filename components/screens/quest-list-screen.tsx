@@ -92,7 +92,7 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b shrink-0">
+      <header className="sticky top-0 z-10 flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b shrink-0">
         <h1 className="text-xl font-bold">Квесты</h1>
         <Button variant="ghost" size="icon" onClick={fetchQuests} disabled={isLoading}>
           <RefreshCw className={`w-5 h-5 ${isLoading ? "animate-spin" : ""}`} />
@@ -167,25 +167,26 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
           </>
         )}
       </main>
-
+{/* BOTTOM NAVIGATION */}
       <nav className="fixed bottom-0 left-0 right-0 flex items-center justify-around p-3 border-t bg-white dark:bg-gray-950 z-40">
-        <button
-          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => onNavigate("quest-map")}
+        <button className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+        onClick={() => onNavigate("quest-map")}
         >
           <Home className="w-6 h-6" />
           <span className="text-xs">Главная</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-purple-600">
+        <button
+          className="flex flex-col items-center gap-1 text-purple-600"
+        >
           <MapIcon className="w-6 h-6" />
-          <span className="text-xs font-medium">Квесты</span>
+          <span className="text-xs">Квесты</span>
         </button>
         <button
-          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+          className="flex flex-col items-center gap-1 text-muted-foreground"
           onClick={() => onNavigate("profile")}
         >
           <User className="w-6 h-6" />
-          <span className="text-xs">Профиль</span>
+          <span className="text-xs font-medium">Профиль</span>
         </button>
       </nav>
     </div>

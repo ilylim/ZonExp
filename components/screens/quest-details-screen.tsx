@@ -114,7 +114,7 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
   if (!quest) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
-        <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b">
+        <header className="sticky top-0 z-10 flex items-center justify-between p-4 bg-white dark:bg-gray-950 border-b">
           <Button variant="ghost" size="icon" onClick={() => onNavigate("quest-list")}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -157,7 +157,7 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
-      <header className="flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-b shadow-sm shrink-0">
+      <header className="sticky top-0 z-10 flex items-center justify-between p-4 bg-white dark:bg-gray-900 border-b shadow-sm shrink-0">
         <Button variant="ghost" size="icon" onClick={() => onNavigate("quest-list")}>
           <ArrowLeft className="w-5 h-5" />
         </Button>

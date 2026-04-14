@@ -42,7 +42,7 @@ export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userX
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* HEADER */}
-      <header className="flex items-center justify-between p-4 border-b bg-white dark:bg-gray-950 shrink-0">
+      <header className="sticky top-0 z-10 flex items-center justify-between p-4 border-b bg-white dark:bg-gray-950 shrink-0">
         <h1 className="text-xl font-bold">Профиль</h1>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon">
@@ -58,7 +58,7 @@ export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userX
       {showSettings && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
           <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white dark:bg-gray-900 p-4 border-b flex items-center justify-between">
+            <div className="sticky top-0 z-50 bg-white dark:bg-gray-900 p-4 border-b flex items-center justify-between">
               <h2 className="text-lg font-semibold">Настройки</h2>
               <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-muted rounded-full">
                 <X className="w-5 h-5" />
