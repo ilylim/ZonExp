@@ -90,6 +90,8 @@ export function QuestMapScreen({ onNavigate, userName }: QuestMapScreenProps) {
   const [mapError, setMapError] = useState<string | null>(null)
   const [isSelectingLocation, setIsSelectingLocation] = useState(false)
   const [tempLocation, setTempLocation] = useState<[number, number] | null>(null)
+  const [isGettingGPS, setIsGettingGPS] = useState(false)
+  const [gpsError, setGpsError] = useState<string | null>(null)
   const tempMarkerRef = useRef<maplibregl.Marker | null>(null)
 
   const fetchQuests = useCallback(async (forceRefresh = false) => {
@@ -270,6 +272,56 @@ useEffect(() => {
     if (map.current) map.current.getCanvas().style.cursor = ""
   }
 
+  const handleGetGPS = () => {
+    setIsGettingGPS(true)
+    setGpsError(null)
+
+    if (!navigator.geolocation) {
+      setGpsError("Геолокация недоступна в вашем браузере")
+      setIsGettingGPS(false)
+      return
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords: [number, number] = [pos.coords.longitude, pos.coords.latitude]
+        const accuracy = pos.coords.accuracy
+
+        setUserLocation(coords)
+        setLocationAccuracy(accuracy)
+        setIsGettingGPS(false)
+        setGpsError(null)
+
+        // Если точность плохая, предложить выбрать вручную
+        if (accuracy > LOCATION_ACCURACY_THRESHOLD) {
+          setGpsError(
+            `GPS точность: ${Math.round(accuracy)}м. Это может быть неточно. Хотите выбрать вручную?`
+          )
+          setTimeout(() => {
+            if (
+              confirm(
+                `GPS неточен (${Math.round(accuracy)}м > 500м). Выбрать местоположение вручную?`
+              )
+            ) {
+              setIsSelectingLocation(true)
+              setTempLocation(null)
+            }
+          }, 300)
+        }
+      },
+      (err) => {
+        console.error("GPS error:", err)
+        let errorMsg = "Ошибка при получении GPS"
+        if (err.code === 1) errorMsg = "Доступ к геолокации запрещён"
+        else if (err.code === 2) errorMsg = "Геолокация недоступна"
+        else if (err.code === 3) errorMsg = "Истекло время ожидания GPS"
+        setGpsError(errorMsg)
+        setIsGettingGPS(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
+
   // Обновление маркеров квестов
   useEffect(() => {
     if (!map.current || !mapLoaded) return
@@ -299,7 +351,7 @@ useEffect(() => {
 
   // Отрисовка маршрутов
   useEffect(() => {
-    if (!map.current || !mapLoaded) return
+    if (!map.current || !mapLoaded || !map.current.isStyleLoaded()) return
     const assignedQuests = quests.filter((q) => q.isAssigned && q.routeColorIndex !== null)
     const origin = userLocation || KRASNOYARSK_CENTER
 
@@ -394,16 +446,53 @@ useEffect(() => {
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
               <span>Местоположение не выбрано</span>
-              <button onClick={() => { setIsSelectingLocation(true); setTempLocation(null); }} className="text-blue-600 hover:text-blue-800 underline font-medium">Выбрать</button>
+              <div className="flex gap-1">
+                <button
+                  onClick={handleGetGPS}
+                  disabled={isGettingGPS}
+                  className="text-blue-600 hover:text-blue-800 underline font-medium disabled:opacity-50"
+                >
+                  {isGettingGPS ? "GPS..." : "GPS"}
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={() => {
+                    setIsSelectingLocation(true)
+                    setTempLocation(null)
+                  }}
+                  className="text-blue-600 hover:text-blue-800 underline font-medium"
+                >
+                  Вручную
+                </button>
+              </div>
             </div>
+            {gpsError && <div className="text-red-600 text-xs mt-1">{gpsError}</div>}
           </div>
         )}
         {userLocation && locationAccuracy && locationAccuracy <= LOCATION_ACCURACY_THRESHOLD && (
           <div className="absolute top-4 left-4 bg-white/90 dark:bg-gray-900/90 px-3 py-2 rounded-lg shadow text-xs z-10">
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${locationAccuracy < 100 ? "bg-green-500" : "bg-yellow-500"}`} />
-              <span>Точность: ~{locationAccuracy}м</span>
-              <button onClick={() => { setIsSelectingLocation(true); setTempLocation(null); }} className="text-blue-600 hover:text-blue-800 underline font-medium">Изменить</button>
+              <span>Точность: ~{Math.round(locationAccuracy)}м</span>
+              <div className="flex gap-1">
+                <button
+                  onClick={handleGetGPS}
+                  disabled={isGettingGPS}
+                  className="text-blue-600 hover:text-blue-800 underline font-medium disabled:opacity-50"
+                >
+                  {isGettingGPS ? "GPS..." : "Обновить"}
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={() => {
+                    setIsSelectingLocation(true)
+                    setTempLocation(null)
+                  }}
+                  className="text-blue-600 hover:text-blue-800 underline font-medium"
+                >
+                  Изменить
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -412,7 +501,25 @@ useEffect(() => {
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-blue-500 rounded-full" />
               <span>Красноярск (центр)</span>
-              <button onClick={() => { setIsSelectingLocation(true); setTempLocation(null); }} className="text-blue-600 hover:text-blue-800 underline font-medium">Изменить</button>
+              <div className="flex gap-1">
+                <button
+                  onClick={handleGetGPS}
+                  disabled={isGettingGPS}
+                  className="text-blue-600 hover:text-blue-800 underline font-medium disabled:opacity-50"
+                >
+                  {isGettingGPS ? "GPS..." : "GPS"}
+                </button>
+                <span className="text-gray-400">|</span>
+                <button
+                  onClick={() => {
+                    setIsSelectingLocation(true)
+                    setTempLocation(null)
+                  }}
+                  className="text-blue-600 hover:text-blue-800 underline font-medium"
+                >
+                  Изменить
+                </button>
+              </div>
             </div>
           </div>
         )}
