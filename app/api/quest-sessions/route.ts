@@ -1,44 +1,67 @@
-import { randomUUID } from "crypto"
-import { z } from "zod"
 import { auth } from "@/lib/auth"
+import { and, eq } from "drizzle-orm"
 import { getDb } from "@/db"
-import { questSessions, quests } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import { questSessions, userQuestAssignments } from "@/db/schema"
 
 export const dynamic = "force-dynamic"
-
-const postSchema = z.object({
-  questId: z.string().min(1),
-})
 
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.id) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
-  let json: unknown
-  try {
-    json = await req.json()
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 })
+
+  const { questId } = await req.json()
+  if (!questId) {
+    return Response.json({ error: "questId is required" }, { status: 400 })
   }
-  const parsed = postSchema.safeParse(json)
-  if (!parsed.success) {
-    return Response.json({ error: parsed.error.flatten() }, { status: 400 })
-  }
+
   const db = getDb()
-  const quest = await db.query.quests.findFirst({
-    where: eq(quests.questId, parsed.data.questId),
+
+  // Проверяем, что квест действительно взят (assignment существует)
+  const assignment = await db.query.userQuestAssignments.findFirst({
+    where: and(
+      eq(userQuestAssignments.userId, session.user.id),
+      eq(userQuestAssignments.questId, questId)
+    ),
   })
-  if (!quest?.isActive) {
-    return Response.json({ error: "Quest not found" }, { status: 404 })
+
+  if (!assignment) {
+    return Response.json({ error: "Сначала возьмите квест" }, { status: 403 })
   }
-  const sessionId = randomUUID()
+
+  // Проверяем, нет ли уже активной сессии по этому квесту
+  const existing = await db.query.questSessions.findFirst({
+    where: and(
+      eq(questSessions.userId, session.user.id),
+      eq(questSessions.questId, questId),
+      eq(questSessions.status, "active")
+    ),
+  })
+
+  if (existing) {
+    return Response.json({ 
+      success: true, 
+      sessionId: existing.sessionId, 
+      alreadyStarted: true 
+    })
+  }
+
+  const sessionId = crypto.randomUUID()
+
   await db.insert(questSessions).values({
     sessionId,
     userId: session.user.id,
-    questId: quest.questId,
+    questId,
+    startedAt: new Date(),
     status: "active",
   })
-  return Response.json({ sessionId, questId: quest.questId })
+
+  console.log(`[Session] Created session ${sessionId} for quest ${questId}`)
+
+  return Response.json({ 
+    success: true, 
+    sessionId,
+    questId 
+  })
 }

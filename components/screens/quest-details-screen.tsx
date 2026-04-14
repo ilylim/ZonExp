@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { Screen } from "@/app/page"
-import { ArrowLeft, Heart, Clock, MapPin, Gem, Trophy, Route, Flag, Target, Home, Map as MapIcon, User, Navigation } from "lucide-react"
+import { ArrowLeft, Heart, Clock, MapPin, Gem, Trophy, Navigation, Target, Home, Map as MapIcon, User } from "lucide-react"
 import maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 
 interface QuestDetailsScreenProps {
-  onNavigate: (screen: Screen, quest?: any) => void
+  onNavigate: (screen: Screen, data?: any) => void
   quest?: any
   userLocation: [number, number] | null
 }
@@ -23,6 +23,8 @@ const intensityMap = {
 
 export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDetailsScreenProps) {
   const [isFavorite, setIsFavorite] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
+
   const mapContainer = useRef<HTMLDivElement>(null)
   const map = useRef<maplibregl.Map | null>(null)
 
@@ -30,10 +32,9 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
     ? [quest.longitude, quest.latitude] 
     : [92.8700, 56.0100]
 
-  // Инициализация карты с маршрутом
+  // Инициализация карты
   useEffect(() => {
-    if (!mapContainer.current || !quest) return
-    if (map.current) return
+    if (!mapContainer.current || !quest || map.current) return
 
     const center = userLocation || questLocation
 
@@ -44,10 +45,7 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
         sources: {
           osm: {
             type: "raster",
-            tiles: [
-              "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png",
-              "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png",
-            ],
+            tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png"],
             tileSize: 256,
             attribution: '© OpenStreetMap',
           },
@@ -61,65 +59,34 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
 
     map.current.on("load", () => {
       if (!map.current) return
-
-      // Координаты маршрута: от пользователя до квеста
       const from = userLocation || questLocation
       const to = questLocation
 
-      // Добавляем источник маршрута
-      map.current!.addSource("route", {
+      map.current.addSource("route", {
         type: "geojson",
-        data: {
-          type: "Feature",
-          geometry: {
-            type: "LineString",
-            coordinates: [from, to],
-          },
-        },
+        data: { type: "Feature", geometry: { type: "LineString", coordinates: [from, to] } },
       })
 
-      // Линия маршрута
-      map.current!.addLayer({
+      map.current.addLayer({
         id: "route-line",
         type: "line",
         source: "route",
-        paint: {
-          "line-color": "#8b5cf6",
-          "line-width": 4,
-          "line-opacity": 0.8,
-          "line-dasharray": [3, 2],
-        },
+        paint: { "line-color": "#8b5cf6", "line-width": 4, "line-opacity": 0.8, "line-dasharray": [3, 2] },
       })
 
-      // Маркер старта (пользователь)
+      // Маркеры
       if (userLocation) {
         const startEl = document.createElement("div")
-        startEl.innerHTML = `
-          <div style="width:28px;height:28px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 7.05 11.5 7.35 11.76a1 1 0 0 0 1.3 0C13 21.5 20 15.4 20 10a8 8 0 0 0-8-8Z"/></svg>
-          </div>
-        `
-        new maplibregl.Marker({ element: startEl })
-          .setLngLat(from)
-          .addTo(map.current!)
+        startEl.innerHTML = `<div style="width:28px;height:28px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 0-8 8c0 5.4 7.05 11.5 7.35 11.76a1 1 0 0 0 1.3 0C13 21.5 20 15.4 20 10a8 8 0 0 0-8-8Z"/></svg></div>`
+        new maplibregl.Marker({ element: startEl }).setLngLat(from).addTo(map.current)
       }
 
-      // Маркер финиша (квест)
       const finishEl = document.createElement("div")
-      finishEl.innerHTML = `
-        <div style="width:32px;height:32px;background:#8b5cf6;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-        </div>
-      `
-      new maplibregl.Marker({ element: finishEl })
-        .setLngLat(to)
-        .addTo(map.current!)
+      finishEl.innerHTML = `<div style="width:32px;height:32px;background:#8b5cf6;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>`
+      new maplibregl.Marker({ element: finishEl }).setLngLat(to).addTo(map.current)
 
-      // Подгоняем карту чтобы показать весь маршрут
-      const bounds = new maplibregl.LngLatBounds()
-      bounds.extend(from)
-      bounds.extend(to)
-      map.current!.fitBounds(bounds, { padding: 60, maxZoom: 15 })
+      const bounds = new maplibregl.LngLatBounds().extend(from).extend(to)
+      map.current.fitBounds(bounds, { padding: 60, maxZoom: 15 })
     })
 
     return () => {
@@ -127,6 +94,28 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
       map.current = null
     }
   }, [quest, userLocation])
+
+  const startQuest = async () => {
+    if (!quest) return
+    setIsStarting(true)
+    try {
+      const res = await fetch("/api/quests/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questId: quest.questId }),
+      })
+      const data = await res.json()
+      if (res.ok && data.sessionId) {
+        onNavigate("active-quest", data.quest)
+      } else {
+        alert(data.error || "Не удалось начать квест")
+      }
+    } catch {
+      alert("Ошибка соединения")
+    } finally {
+      setIsStarting(false)
+    }
+  }
 
   if (!quest) {
     return (
@@ -136,7 +125,6 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <span className="font-semibold">Квест не найден</span>
-          <div className="w-9" />
         </header>
         <div className="flex-1 flex items-center justify-center">
           <p className="text-muted-foreground">Выберите квест из списка</p>
@@ -145,27 +133,23 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
     )
   }
 
-  // Расчёт расстояния
+  // Расчёт расстояния (оставлен как был)
   const distance = userLocation
-    ? Math.round(
-        6371000 *
-          2 *
-          Math.atan2(
-            Math.sqrt(
-              Math.sin(((quest.latitude - userLocation[1]) * Math.PI) / 360) ** 2 +
-                Math.cos((userLocation[1] * Math.PI) / 180) *
-                  Math.cos((quest.latitude * Math.PI) / 180) *
-                  Math.sin(((quest.longitude - userLocation[0]) * Math.PI) / 360) ** 2
-            ),
-            Math.sqrt(
-              1 -
-                Math.sin(((quest.latitude - userLocation[1]) * Math.PI) / 360) ** 2 +
-                  Math.cos((userLocation[1] * Math.PI) / 180) *
-                    Math.cos((quest.latitude * Math.PI) / 180) *
-                    Math.sin(((quest.longitude - userLocation[0]) * Math.PI) / 360) ** 2
-            )
-          )
-      )
+    ? Math.round(6371000 * 2 * Math.atan2(
+        Math.sqrt(
+          Math.sin(((quest.latitude - userLocation[1]) * Math.PI) / 360) ** 2 +
+            Math.cos((userLocation[1] * Math.PI) / 180) *
+              Math.cos((quest.latitude * Math.PI) / 180) *
+              Math.sin(((quest.longitude - userLocation[0]) * Math.PI) / 360) ** 2
+        ),
+        Math.sqrt(
+          1 -
+            Math.sin(((quest.latitude - userLocation[1]) * Math.PI) / 360) ** 2 +
+              Math.cos((userLocation[1] * Math.PI) / 180) *
+                Math.cos((quest.latitude * Math.PI) / 180) *
+                Math.sin(((quest.longitude - userLocation[0]) * Math.PI) / 360) ** 2
+        )
+      ))
     : null
 
   const formatDistance = (d: number | null) => {
@@ -263,10 +247,10 @@ export function QuestDetailsScreen({ onNavigate, quest, userLocation }: QuestDet
       <div className="p-4 bg-white dark:bg-gray-900 border-t space-y-2 shrink-0">
         <Button
           className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-          onClick={() => onNavigate("active-quest")}
+          onClick={startQuest}
+          disabled={isStarting}
         >
-          <Target className="w-5 h-5 mr-2" />
-          Начать квест
+          {isStarting ? "Запускаем..." : "Начать квест"}
         </Button>
         <Button variant="ghost" className="w-full" onClick={() => onNavigate("quest-list")}>
           Отмена

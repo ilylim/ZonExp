@@ -15,12 +15,11 @@ function createPool() {
 
   console.log("[DB] Creating new PostgreSQL Pool (pg driver)")
 
-  // pg (node-postgres) идеально работает с Supabase Connection Pooler
   return new Pool({
     connectionString: url,
-    max: 5,                      // Максимум 5 соединений в пуле
-    idleTimeoutMillis: 20000,    // Закрывать простаивающие через 20 сек
-    connectionTimeoutMillis: 10000, // Таймаут на новое подключение 10 сек
+    max: 5,
+    idleTimeoutMillis: 20000,
+    connectionTimeoutMillis: 10000,
   })
 }
 
@@ -30,7 +29,7 @@ export function getDb() {
     globalForDb.pool = createPool()
     globalForDb.db = drizzle(globalForDb.pool, { schema })
   }
-  
+
   return globalForDb.db!
 }
 

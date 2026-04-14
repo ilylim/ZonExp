@@ -9,8 +9,8 @@ import maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
 
 interface QuestMapScreenProps {
-  onNavigate: (screen: Screen) => void
-  onLogout: () => void
+  onNavigate: (screen: Screen, data?: any) => void
+  onLogout?: () => void
   userName: string
 }
 
@@ -88,23 +88,26 @@ export function QuestMapScreen({ onNavigate, userName }: QuestMapScreenProps) {
   const tempMarkerRef = useRef<maplibregl.Marker | null>(null)
 
   // Получаем квесты с кэшированием
-  const fetchQuests = useCallback(async () => {
+  const fetchQuests = useCallback(async (forceRefresh = false) => {
     try {
-      // Проверяем кэш в sessionStorage
-      try {
-        const cached = sessionStorage.getItem("quests_data")
-        if (cached) {
-          const { data, timestamp } = JSON.parse(cached)
-          if (Date.now() - timestamp < 60000 && Array.isArray(data)) {
-            console.log("[QuestMap] Restoring quests from cache")
-            setQuests(data)
-            const assignedCount = data.filter((q: Quest) => q.isAssigned).length
-            setActiveCount(assignedCount)
-            setIsLoading(false)
-            return
+      // Если принудительное обновление — пропускаем кэш
+      if (!forceRefresh) {
+        // Проверяем кэш в sessionStorage
+        try {
+          const cached = sessionStorage.getItem("quests_data")
+          if (cached) {
+            const { data, timestamp } = JSON.parse(cached)
+            if (Date.now() - timestamp < 60000 && Array.isArray(data)) {
+              console.log("[QuestMap] Restoring quests from cache")
+              setQuests(data)
+              const assignedCount = data.filter((q: Quest) => q.isAssigned).length
+              setActiveCount(assignedCount)
+              setIsLoading(false)
+              return
+            }
           }
-        }
-      } catch {}
+        } catch {}
+      }
 
       console.log("Fetching quests from API...")
       const res = await fetch("/api/quests")
@@ -407,55 +410,151 @@ export function QuestMapScreen({ onNavigate, userName }: QuestMapScreenProps) {
     })
   }, [quests, userLocation])
 
-  // Взять квест
-  const handleAcceptQuest = async (questId: string) => {
-    if (activeCount >= MAX_ACTIVE_QUESTS) {
+  // Взять квест + сразу запустить сессию (прямой переход в active-quest)
+const handleAcceptQuest = async (questId: string) => {
+  if (activeCount >= MAX_ACTIVE_QUESTS) {
+    setShowLimitWarning(true)
+    setTimeout(() => setShowLimitWarning(false), 3000)
+    return
+  }
+
+  // === 1. Optimistic assignment ===
+  const usedColors = new Set(
+    quests
+      .filter((q) => q.isAssigned && q.routeColorIndex !== null)
+      .map((q) => q.routeColorIndex!)
+  )
+  let nextColorIndex = 0
+  while (usedColors.has(nextColorIndex)) nextColorIndex++
+  if (nextColorIndex >= ROUTE_COLORS.length) nextColorIndex = 0
+
+  const optimisticQuests = quests.map((q) =>
+    q.questId === questId
+      ? { ...q, isAssigned: true, routeColorIndex: nextColorIndex }
+      : q
+  )
+
+  setQuests(optimisticQuests)
+  setActiveCount((prev) => prev + 1)
+
+  // Обновляем кэш сразу
+  sessionStorage.setItem(
+    "quests_data",
+    JSON.stringify({ data: optimisticQuests, timestamp: Date.now() })
+  )
+
+  const selectedQuestUpdated = optimisticQuests.find((q) => q.questId === questId)!
+
+  try {
+    // === 2. Создаём assignment на сервере ===
+    const assignRes = await fetch("/api/quests/assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questId }),
+    })
+
+    if (!assignRes.ok) {
+      const err = await assignRes.json().catch(() => ({}))
+      throw err
+    }
+
+    // === 3. Сразу создаём сессию ===
+    const sessionRes = await fetch("/api/quest-sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questId }),
+    })
+
+    const sessionData = await sessionRes.json()
+
+    if (!sessionRes.ok || !sessionData.sessionId) {
+      throw sessionData
+    }
+
+    // === 4. Успех — сразу переходим в активный квест ===
+    console.log(`✅ Квест ${questId} взят и запущен. Session: ${sessionData.sessionId}`)
+    setSelectedQuest(null)
+
+    onNavigate("active-quest", {
+      quest: selectedQuestUpdated,
+      sessionId: sessionData.sessionId,
+    })
+
+  } catch (err: any) {
+    console.error("Start quest failed:", err)
+
+    // === Откатываем optimistic update ===
+    const revertedQuests = quests.map((q) =>
+      q.questId === questId
+        ? { ...q, isAssigned: false, routeColorIndex: null }
+        : q
+    )
+    setQuests(revertedQuests)
+    setActiveCount((prev) => prev - 1)
+
+    sessionStorage.setItem(
+      "quests_data",
+      JSON.stringify({ data: revertedQuests, timestamp: Date.now() })
+    )
+
+    if (err.maxReached || err.error?.includes("Maximum")) {
       setShowLimitWarning(true)
       setTimeout(() => setShowLimitWarning(false), 3000)
-      return
-    }
-
-    try {
-      const res = await fetch("/api/quests/assignments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questId }),
-      })
-
-      const data = await res.json()
-
-      if (res.ok) {
-        // Обновляем список квестов
-        await fetchQuests()
-        setSelectedQuest(null)
-      } else if (data.maxReached) {
-        setShowLimitWarning(true)
-        setTimeout(() => setShowLimitWarning(false), 3000)
-      } else {
-        setError(data.error || "Ошибка при принятии квеста")
-      }
-    } catch (error) {
-      setError("Ошибка соединения с сервером")
+    } else {
+      setError(err.error || "Не удалось начать квест")
     }
   }
+}
 
-  // Отменить квест
-  const handleCancelQuest = async (questId: string) => {
-    try {
-      const res = await fetch("/api/quests/assignments", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questId }),
-      })
+// Отменить квест — тоже с optimistic
+const handleCancelQuest = async (questId: string) => {
+  // Optimistic
+  const optimisticQuests = quests.map((q) =>
+    q.questId === questId
+      ? { ...q, isAssigned: false, routeColorIndex: null }
+      : q
+  )
 
-      if (res.ok) {
-        await fetchQuests()
-        setSelectedQuest(null)
-      }
-    } catch (error) {
-      setError("Ошибка при отмене квеста")
-    }
+  const oldActive = activeCount
+  setQuests(optimisticQuests)
+  setActiveCount((prev) => prev - 1)
+
+  sessionStorage.setItem(
+    "quests_data",
+    JSON.stringify({ data: optimisticQuests, timestamp: Date.now() })
+  )
+
+  try {
+    const res = await fetch("/api/quests/assignments", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questId }),
+    })
+
+    if (!res.ok) throw new Error("Failed to cancel")
+
+    setSelectedQuest(null)
+    console.log(`✅ Квест ${questId} отменён`)
+  } catch (error) {
+    console.error("Cancel failed:", error)
+
+    // Откат
+    const revertedQuests = quests.map((q) =>
+      q.questId === questId
+        ? { ...q, isAssigned: true, routeColorIndex: quests.find((qq) => qq.questId === questId)?.routeColorIndex ?? 0 }
+        : q
+    )
+    setQuests(revertedQuests)
+    setActiveCount(oldActive)
+
+    sessionStorage.setItem(
+      "quests_data",
+      JSON.stringify({ data: revertedQuests, timestamp: Date.now() })
+    )
+
+    setError("Ошибка при отмене квеста")
   }
+}
 
   // Расчёт расстояния до квеста (упрощённый Haversine)
   const calculateDistance = (questLat: number, questLng: number): number => {
@@ -488,45 +587,58 @@ export function QuestMapScreen({ onNavigate, userName }: QuestMapScreenProps) {
     }
   }
 
-  // Обработка клика по карте для выбора позиции
-  useEffect(() => {
-    if (!map.current || !isSelectingLocation) return
+  // Отрисовка маршрутов для принятых квестов
+useEffect(() => {
+  if (!map.current) return
 
-    const handleClick = (e: maplibregl.MapMouseEvent) => {
-      const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat]
-      setTempLocation(coords)
-      
-      // Удаляем старый маркер
-      if (tempMarkerRef.current) {
-        tempMarkerRef.current.remove()
-      }
-      
-      // Создаём новый маркер
-      const markerEl = document.createElement("div")
-      markerEl.className = "temp-location-marker"
-      markerEl.innerHTML = `
-        <div style="width:32px;height:32px;background:#22c55e;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-        </div>
-      `
-      
-      tempMarkerRef.current = new maplibregl.Marker({ element: markerEl })
-        .setLngLat(coords)
-        .addTo(map.current!)
-    }
+  console.log(`[Routes] Updating routes. Active quests: ${quests.filter(q => q.isAssigned).length}`)
 
-    map.current.on("click", handleClick)
-    map.current.getCanvas().style.cursor = "crosshair"
+  // 1. ПОЛНАЯ ОЧИСТКА — удаляем ВСЕ маршруты (включая только что отменённые)
+  quests.forEach((quest) => {
+    const routeId = `route-${quest.questId}`
+    const fromId = `from-${quest.questId}`
+    const toId = `to-${quest.questId}`
 
-    return () => {
-      map.current?.off("click", handleClick)
-      if (map.current) {
-        map.current.getCanvas().style.cursor = ""
-      }
-      tempMarkerRef.current?.remove()
-      tempMarkerRef.current = null
-    }
-  }, [isSelectingLocation])
+    // Удаляем слои и источники, если они существуют
+    if (map.current!.getLayer(routeId)) map.current!.removeLayer(routeId)
+    if (map.current!.getLayer(fromId)) map.current!.removeLayer(fromId)
+    if (map.current!.getLayer(toId)) map.current!.removeLayer(toId)
+    if (map.current!.getSource(routeId)) map.current!.removeSource(routeId)
+  })
+
+  // 2. Добавляем маршруты ТОЛЬКО для текущих активных квестов
+  const assignedQuests = quests.filter((q) => q.isAssigned && q.routeColorIndex !== null)
+
+  assignedQuests.forEach((quest) => {
+    const routeId = `route-${quest.questId}`
+    const from = userLocation || KRASNOYARSK_CENTER
+    const to: [number, number] = [quest.longitude, quest.latitude]
+    const color = ROUTE_COLORS[quest.routeColorIndex!]
+
+    // Прямая линия от пользователя до квеста
+    map.current!.addSource(routeId, {
+      type: "geojson",
+      data: {
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: [from, to] },
+      },
+    })
+
+    map.current!.addLayer({
+      id: routeId,
+      type: "line",
+      source: routeId,
+      paint: {
+        "line-color": color,
+        "line-width": 4,
+        "line-opacity": 0.7,
+        "line-dasharray": [2, 2],
+      },
+    })
+  })
+
+  console.log(`[Routes] Added ${assignedQuests.length} active routes`)
+}, [quests, userLocation])
 
   // Подтверждение выбранной позиции
   const confirmLocation = () => {
@@ -800,12 +912,32 @@ export function QuestMapScreen({ onNavigate, userName }: QuestMapScreenProps) {
             ) : (
               <Button
                 className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                onClick={() => handleAcceptQuest(selectedQuest.questId)}
+                onClick={async () => {
+                  try {
+                    const res = await fetch("/api/quests/start", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ questId: selectedQuest.questId }),
+                    })
+                    const data = await res.json()
+                    if (res.ok) {
+                      setSelectedQuest(null)
+                      // Принудительно обновляем квесты (без кэша)
+                      await fetchQuests(true)
+                      // Переходим на active-quest
+                      onNavigate("active-quest", data.quest || selectedQuest)
+                    } else {
+                      alert(data.error || "Не удалось начать квест")
+                    }
+                  } catch {
+                    alert("Ошибка соединения")
+                  }
+                }}
                 disabled={activeCount >= MAX_ACTIVE_QUESTS}
               >
                 {activeCount >= MAX_ACTIVE_QUESTS
                   ? `Максимум квестов (${MAX_ACTIVE_QUESTS})`
-                  : `Взять квест (${activeCount}/${MAX_ACTIVE_QUESTS})`}
+                  : `Начать квест`}
               </Button>
             )}
           </div>

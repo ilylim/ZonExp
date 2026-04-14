@@ -12,6 +12,7 @@ next.user-config.*
 .env*.local
 
 .qwen/
+.env
 
 # Common ignores
 node_modules/

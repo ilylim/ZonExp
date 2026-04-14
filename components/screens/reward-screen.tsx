@@ -8,28 +8,27 @@ import { Share2, CheckCircle, Timer, Footprints, Flame, Gem, Trophy, MapPin, Cro
 
 interface RewardScreenProps {
   onNavigate: (screen: Screen) => void
+  data?: { earnedXp?: number; quest?: any; successful?: boolean }
 }
 
-export function RewardScreen({ onNavigate }: RewardScreenProps) {
-  const [showXpAnimation, setShowXpAnimation] = useState(false)
+export function RewardScreen({ onNavigate, data }: RewardScreenProps) {
   const [animatedXp, setAnimatedXp] = useState(0)
+  const [showXpAnimation, setShowXpAnimation] = useState(true)
+  const earnedXp = data?.earnedXp || 150
+  const successful = data?.successful !== false
 
   useEffect(() => {
-    setShowXpAnimation(true)
-    
-    // Animate XP count
+    let count = 0
     const interval = setInterval(() => {
-      setAnimatedXp((prev) => {
-        if (prev >= 150) {
-          clearInterval(interval)
-          return 150
-        }
-        return prev + 5
-      })
-    }, 30)
-
+      count += Math.max(5, Math.floor(earnedXp / 30))
+      if (count >= earnedXp) {
+        count = earnedXp
+        clearInterval(interval)
+      }
+      setAnimatedXp(count)
+    }, 25)
     return () => clearInterval(interval)
-  }, [])
+  }, [earnedXp])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-950 dark:to-gray-900 flex flex-col">
@@ -84,13 +83,9 @@ export function RewardScreen({ onNavigate }: RewardScreenProps) {
           <h2 className="text-lg font-semibold mb-4">Твоя награда</h2>
 
           {/* Animated XP */}
-          <div
-            className={`text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent transition-all duration-700 ${
-              showXpAnimation ? "scale-100 opacity-100" : "scale-50 opacity-0"
-            }`}
-          >
-            +{animatedXp} XP
-          </div>
+          <div className="text-5xl font-bold mb-4 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+          +{animatedXp} XP
+        </div>
 
           {/* Badge */}
           <div className="flex items-center justify-center gap-3 mb-4 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl">

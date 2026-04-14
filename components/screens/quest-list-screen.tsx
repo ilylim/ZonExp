@@ -42,37 +42,12 @@ function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
 }
 
 export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenProps) {
-  const [quests, setQuests] = useState<Quest[]>(() => {
-    // Восстанавливаем из sessionStorage при монтировании
-    try {
-      const cached = sessionStorage.getItem("quests_data")
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached)
-        // Кэш действует 60 секунд
-        if (Date.now() - timestamp < 60000) {
-          console.log("[QuestList] Restoring quests from sessionStorage cache")
-          return data
-        }
-      }
-    } catch {}
-    return []
-  })
-  const [isLoading, setIsLoading] = useState(() => quests.length > 0 ? false : true)
+  const [quests, setQuests] = useState<Quest[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const fetchQuests = useCallback(async () => {
-    // Если данные уже есть и свежие - не перезагружаем
-    try {
-      const cached = sessionStorage.getItem("quests_data")
-      if (cached && quests.length > 0) {
-        const { timestamp } = JSON.parse(cached)
-        if (Date.now() - timestamp < 60000) {
-          console.log("[QuestList] Cache still valid, skipping fetch")
-          return
-        }
-      }
-    } catch {}
-
+    // Всегда загружаем с сервера — квесты могли измениться
     setIsLoading(true)
     setError(null)
     try {
@@ -93,12 +68,6 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
         }
 
         setQuests(list)
-        
-        // Сохраняем в sessionStorage
-        sessionStorage.setItem("quests_data", JSON.stringify({
-          data: list,
-          timestamp: Date.now()
-        }))
       } else {
         setError(data.error || "Не удалось загрузить квесты")
       }
@@ -114,6 +83,24 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
     fetchQuests()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const handleStartActiveQuest = async (quest: Quest) => {
+    try {
+      const res = await fetch("/api/quests/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questId: quest.questId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        onNavigate("active-quest", data.quest || quest)
+      } else {
+        alert(data.error || "Не удалось начать квест")
+      }
+    } catch {
+      console.error("Failed to start quest")
+    }
+  }
 
   const activeQuests = quests.filter((q) => q.isAssigned)
   const availableQuests = quests.filter((q) => !q.isAssigned)
@@ -173,7 +160,7 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
                       key={quest.questId}
                       quest={quest}
                       formatDistance={formatDistance}
-                      onDetails={() => onNavigate("quest-details", quest)}
+                      onDetails={() => handleStartActiveQuest(quest)}
                     />
                   ))}
                 </div>
