@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { eq, count, and } from "drizzle-orm"
+import { eq, count, and, sql } from "drizzle-orm"
 import { randomUUID } from "crypto"
 import { getDb } from "@/db"
 import { quests, userQuestAssignments, questSessions } from "@/db/schema"
@@ -53,12 +53,16 @@ export async function POST(req: Request) {
 
     const db = getDb()
 
-    // 1. Проверяем существование квеста
-    const quest = await executeWithRetry(async () => {
-      return db.query.quests.findFirst({
-        where: eq(quests.questId, questId),
-      })
+    // 1. Проверяем существование квеста и получаем его координаты из PostGIS
+    const questResult = await executeWithRetry(async () => {
+      return db.execute(
+        sql`SELECT quest_id, title, duration_minutes, intensity, quest_type, xp_reward, is_active, route_description,
+                   ST_Y(location) as latitude, ST_X(location) as longitude
+            FROM quests WHERE quest_id = ${questId}`
+      )
     })
+
+    const quest = (questResult as any[])?.[0]
 
     if (!quest) {
       return Response.json({ error: "Quest not found" }, { status: 404 })
@@ -157,10 +161,22 @@ export async function POST(req: Request) {
 
     console.log(`[StartQuest] ✅ Started quest ${questId}, session ${sessionId}`)
 
+    // Возвращаем данные квеста с координатами
     return Response.json({
       success: true,
       sessionId,
-      quest,
+      quest: {
+        questId: quest.quest_id,
+        title: quest.title,
+        durationMinutes: quest.duration_minutes,
+        intensity: quest.intensity,
+        questType: quest.quest_type,
+        xpReward: quest.xp_reward,
+        isActive: quest.is_active,
+        routeDescription: quest.route_description,
+        latitude: Number(quest.latitude),
+        longitude: Number(quest.longitude),
+      },
       routeColorIndex: assignment.routeColorIndex,
     })
   } catch (error) {

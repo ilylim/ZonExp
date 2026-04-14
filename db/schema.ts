@@ -8,8 +8,16 @@ import {
   primaryKey,
   text,
   timestamp,
+  customType,
 } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
+
+// PostGIS geometry type (custom type for Drizzle)
+const geometry = customType<{ data: string; driverData: string }>({
+  dataType() {
+    return "geometry"
+  },
+})
 
 export const questIntensityEnum = pgEnum("quest_intensity", [
   "light",
@@ -53,11 +61,9 @@ export const quests = pgTable("quests", {
   questType: questTypeEnum("quest_type").notNull(),
   xpReward: integer("xp_reward").notNull(),
   isActive: boolean("is_active").notNull().default(true),
-  // GPS coordinates for map display
-  latitude: doublePrecision("latitude").notNull(),
-  longitude: doublePrecision("longitude").notNull(),
-  // Brief route description shown in popup
   routeDescription: text("route_description").notNull().default(""),
+  // PostGIS geometry (Point, 4326) — единственный источник координат
+  location: geometry("location").notNull(),
 })
 
 export const questSessions = pgTable("quest_sessions", {

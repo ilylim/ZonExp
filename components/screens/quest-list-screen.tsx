@@ -23,6 +23,7 @@ interface Quest {
   routeDescription: string
   isAssigned: boolean
   routeColorIndex: number | null
+  distanceMeters?: number
   distance?: number
 }
 
@@ -30,15 +31,6 @@ const intensityMap = {
   light: { label: "Лёгкий", color: "bg-green-500" },
   moderate: { label: "Средний", color: "bg-yellow-500" },
   hard: { label: "Сложный", color: "bg-red-500" },
-}
-
-function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000
-  const dLat = ((lat2 - lat1) * Math.PI) / 180
-  const dLng = ((lng2 - lng1) * Math.PI) / 180
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
-  return Math.round(R * c)
 }
 
 export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenProps) {
@@ -52,22 +44,18 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
     setError(null)
     try {
       console.log("[QuestList] Fetching quests from API...")
-      const res = await fetch("/api/quests")
+
+      // Передаём координаты — API будет использовать PostGIS для сортировки
+      const url = userLocation
+        ? `/api/quests?lng=${userLocation[0]}&lat=${userLocation[1]}`
+        : "/api/quests"
+
+      const res = await fetch(url)
       const data = await res.json()
 
       if (res.ok && Array.isArray(data.quests)) {
         console.log(`[QuestList] Received ${data.quests.length} quests`)
-        let list: Quest[] = data.quests
-
-        if (userLocation) {
-          list = list.map((q) => ({
-            ...q,
-            distance: calculateDistance(userLocation[1], userLocation[0], q.latitude, q.longitude),
-          }))
-          list.sort((a, b) => (a.distance || 0) - (b.distance || 0))
-        }
-
-        setQuests(list)
+        setQuests(data.quests)
       } else {
         setError(data.error || "Не удалось загрузить квесты")
       }
@@ -77,7 +65,7 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
     } finally {
       setIsLoading(false)
     }
-  }, [userLocation, quests.length])
+  }, [userLocation])
 
   useEffect(() => {
     fetchQuests()
@@ -105,9 +93,10 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
   const activeQuests = quests.filter((q) => q.isAssigned)
   const availableQuests = quests.filter((q) => !q.isAssigned)
 
-  const formatDistance = (dist?: number) => {
+  const formatDistance = (quest: Quest) => {
+    const dist = quest.distanceMeters || quest.distance
     if (!dist && dist !== 0) return "—"
-    if (dist < 1000) return `${dist} м`
+    if (dist < 1000) return `${Math.round(dist)} м`
     return `${(dist / 1000).toFixed(1)} км`
   }
 
@@ -219,7 +208,7 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
 
 interface QuestCardProps {
   quest: Quest
-  formatDistance: (d?: number) => string
+  formatDistance: (q: Quest) => string
   onDetails: () => void
 }
 
@@ -238,12 +227,10 @@ function QuestCard({ quest, formatDistance, onDetails }: QuestCardProps) {
               <span className={`w-2 h-2 rounded-full ${intensityMap[quest.intensity].color}`} />
               {intensityMap[quest.intensity].label}
             </span>
-            {quest.distance !== undefined && (
-              <span className="flex items-center gap-1">
-                <MapPin className="w-4 h-4" />
-                {formatDistance(quest.distance)}
-              </span>
-            )}
+            <span className="flex items-center gap-1">
+              <MapPin className="w-4 h-4" />
+              {formatDistance(quest)}
+            </span>
           </div>
         </div>
         <div className="text-right ml-3">

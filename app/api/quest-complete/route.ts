@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json()
-  const { questId, successful } = body
+  const { questId, successful, userLat, userLng } = body
 
   if (!questId) {
     return Response.json({ error: "questId is required" }, { status: 400 })
@@ -56,6 +56,19 @@ export async function POST(req: Request) {
     return Response.json({ error: "Quest not found" }, { status: 404 })
   }
 
+  // Если есть координаты пользователя — проверяем расстояние через PostGIS
+  let actualDistanceMeters: number | null = null
+  if (userLat && userLng) {
+    const userPoint = sql`ST_SetSRID(ST_MakePoint(${userLng}, ${userLat}), 4326)`
+    const result = await executeWithRetry(async () => {
+      return db.execute(
+        sql`SELECT ST_Distance(q.location::geography, ${userPoint}::geography) as dist FROM quests q WHERE q.quest_id = ${questId}`
+      )
+    })
+    actualDistanceMeters = Math.round(Number((result as any)[0]?.dist) || 0)
+    console.log(`[QuestComplete] Distance to destination (PostGIS): ${actualDistanceMeters}m`)
+  }
+
   // Ищем активную сессию
   const activeSession = await executeWithRetry(async () => {
     return db.query.questSessions.findFirst({
@@ -68,7 +81,6 @@ export async function POST(req: Request) {
   })
 
   if (!activeSession) {
-    // Создаем и сразу завершаем
     const sessionId = crypto.randomUUID()
     await executeWithRetry(async () => {
       return db.insert(questSessions).values({
@@ -81,7 +93,6 @@ export async function POST(req: Request) {
       })
     })
   } else {
-    // Обновляем существующую
     await executeWithRetry(async () => {
       return db
         .update(questSessions)
@@ -110,7 +121,7 @@ export async function POST(req: Request) {
       .where(eq(progress.userId, session.user.id))
   })
 
-  // Удаляем assignment (квест больше не активный)
+  // Удаляем assignment
   await executeWithRetry(async () => {
     return db
       .delete(userQuestAssignments)
@@ -126,5 +137,6 @@ export async function POST(req: Request) {
     ok: true,
     earnedXp,
     successful,
+    distanceMeters: actualDistanceMeters,
   })
 }
