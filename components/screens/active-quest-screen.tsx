@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { Screen } from "@/app/page"
+import { getExplorationCellIndex } from "@/lib/exploration"
 import type { StartQuestResult } from "@/lib/game-types"
 import { X, Footprints, Gem, Timer, AlertTriangle, Navigation, Home, User, Map as MapIcon, ChevronDown, MapPin } from "lucide-react"
 import maplibregl from "maplibre-gl"
@@ -65,9 +66,15 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
   const userMarkerRef = useRef<maplibregl.Marker | null>(null)
   const destinationMarkerRef = useRef<maplibregl.Marker | null>(null)
   const tempMarkerRef = useRef<maplibregl.Marker | null>(null)
+  const lastDiscoveredCellRef = useRef<string | null>(null)
+  const initialCenterRef = useRef<[number, number] | null>(null)
 
   const hasAccurateGps = gpsLocation && gpsAccuracy !== null && gpsAccuracy <= GPS_ACCURACY_THRESHOLD
   const currentLocation = hasAccurateGps ? gpsLocation : fallbackLocation
+
+  if (!initialCenterRef.current) {
+    initialCenterRef.current = currentLocation || (quest ? [quest.longitude, quest.latitude] : null)
+  }
 
   const isNearDestination = useCallback(() => {
     if (!currentLocation || !quest) return false
@@ -121,6 +128,31 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
   }, [])
 
   useEffect(() => {
+    if (!currentLocation) return
+
+    const currentCell = getExplorationCellIndex(currentLocation[1], currentLocation[0])
+    if (lastDiscoveredCellRef.current === currentCell) return
+    lastDiscoveredCellRef.current = currentCell
+
+    const revealCurrentCell = async () => {
+      try {
+        await fetch("/api/map/exploration", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            lat: currentLocation[1],
+            lng: currentLocation[0],
+          }),
+        })
+      } catch (error) {
+        console.error("[ActiveQuest] Failed to reveal cell:", error)
+      }
+    }
+
+    void revealCurrentCell()
+  }, [currentLocation])
+
+  useEffect(() => {
     if (!quest || !currentLocation) return
 
     const controller = new AbortController()
@@ -169,7 +201,7 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
   useEffect(() => {
     if (!mapContainer.current || !quest || map.current) return
 
-    const center = currentLocation || [quest.longitude, quest.latitude]
+    const center = initialCenterRef.current || [quest.longitude, quest.latitude]
 
     // Оборачиваем в requestAnimationFrame, чтобы контейнер успел получить реальные размеры от браузера
     const initMap = () => {
@@ -218,7 +250,7 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
       map.current?.remove()
       map.current = null
     }
-  }, [quest, currentLocation])
+  }, [quest])
 
   // ОТРИСОВКА МАРШРУТА И МАРКЕРОВ
   useEffect(() => {

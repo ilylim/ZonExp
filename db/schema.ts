@@ -114,6 +114,7 @@ export const territories = pgTable("territories", {
   /** GeoJSON Polygon/MultiPolygon as JSON — mirrored to PostGIS geometry via migration */
   boundaryGeojson: jsonb("boundary_geojson").notNull(),
   totalCells: integer("total_cells").notNull().default(0),
+  h3Cache: text("h3_cache").array(), // Добавляем массив строк
 })
 
 export const userExplorationCells = pgTable(
