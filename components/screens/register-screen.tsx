@@ -73,15 +73,8 @@ export function RegisterScreen({ onNavigate }: RegisterScreenProps) {
               if (typeof data.error === "string") {
                 if (data.error === "Email already registered") {
                   errorMessage = "Этот email уже зарегистрирован. Попробуйте войти."
-                } else if (data.error.startsWith("Database error:")) {
-                  const dbError = data.error.replace("Database error:", "").trim()
-                  if (dbError.includes("connect") || dbError.includes("connection")) {
-                    errorMessage = "Ошибка подключения к базе данных. Проверьте DATABASE_URL в .env"
-                  } else if (dbError.includes("relation") || dbError.includes("table")) {
-                    errorMessage = "Таблицы не найдены. Запустите: npm run db:migrate"
-                  } else {
-                    errorMessage = `Ошибка базы данных: ${dbError}`
-                  }
+                } else if (data.error === "Internal Server Error") {
+                  errorMessage = "Ошибка сервера. Попробуйте позже."
                 } else {
                   errorMessage = data.error
                 }

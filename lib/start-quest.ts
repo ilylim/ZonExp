@@ -49,32 +49,24 @@ export async function startQuest(
   questId: string,
   fallbackQuest?: StartQuestFallback
 ): Promise<StartQuestResult> {
-  // Получаем начальное расстояние из localStorage
   const currentLocation = localStorage.getItem("user_location")
-  let initialDistanceMeters: number | undefined
+  let userLat: number | undefined
+  let userLng: number | undefined
 
   if (currentLocation) {
     try {
       const [lng, lat] = JSON.parse(currentLocation)
-      // Вычисляем примерное расстояние используя Haversine формулу
-      // (тот же простой расчет будет на клиенте в activeQuestScreen)
-      const R = 6371000
-      const questLng = fallbackQuest?.longitude ?? 0
-      const questLat = fallbackQuest?.latitude ?? 0
-      const dLat = ((questLat - lat) * Math.PI) / 180
-      const dLng = ((questLng - lng) * Math.PI) / 180
-      const a = Math.sin(dLat / 2) ** 2 + 
-                Math.cos((lat * Math.PI) / 180) * Math.cos((questLat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2
-      initialDistanceMeters = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)))
-    } catch (e) {
-      console.warn("Failed to calculate initial distance:", e)
-    }
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        userLat = lat
+        userLng = lng
+      }
+    } catch {}
   }
 
   const res = await fetch("/api/quests/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ questId, initialDistanceMeters }),
+    body: JSON.stringify({ questId, userLat, userLng }),
   })
 
   const data = await res.json()

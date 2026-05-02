@@ -2,8 +2,26 @@ import { eq, sql, and } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { getDb } from "@/db"
 import { progress, quests, questSessions, userQuestAssignments } from "@/db/schema"
+import { z } from "zod"
 
 export const dynamic = "force-dynamic"
+
+const COMPLETION_THRESHOLD_METERS = 40
+
+const coordinateSchema = z.number().finite()
+
+const completeQuestSchema = z
+  .object({
+    questId: z.string().trim().min(1).max(128),
+    userLat: coordinateSchema.min(-90).max(90).optional(),
+    userLng: coordinateSchema.min(-180).max(180).optional(),
+  })
+  .refine(
+    (value) =>
+      (value.userLat === undefined && value.userLng === undefined) ||
+      (value.userLat !== undefined && value.userLng !== undefined),
+    { message: "userLat and userLng must be provided together" }
+  )
 
 async function executeWithRetry<T>(fn: () => Promise<T>, retries = 5): Promise<T> {
   for (let i = 0; i < retries; i++) {
@@ -36,13 +54,14 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const body = await req.json()
-  const { questId, successful, userLat, userLng } = body
+  const body = await req.json().catch(() => null)
+  const parsed = completeQuestSchema.safeParse(body)
 
-  if (!questId) {
-    return Response.json({ error: "questId is required" }, { status: 400 })
+  if (!parsed.success) {
+    return Response.json({ error: "Invalid request" }, { status: 400 })
   }
 
+  const { questId, userLat, userLng } = parsed.data
   const db = getDb()
 
   // Ищем квест
@@ -58,15 +77,16 @@ export async function POST(req: Request) {
 
   // Если есть координаты пользователя — проверяем расстояние через PostGIS
   let actualDistanceMeters: number | null = null
-  if (userLat && userLng) {
+  if (userLat !== undefined && userLng !== undefined) {
     const userPoint = sql`ST_SetSRID(ST_MakePoint(${userLng}, ${userLat}), 4326)`
     const result = await executeWithRetry(async () => {
       return db.execute(
         sql`SELECT ST_Distance(q.location::geography, ${userPoint}::geography) as dist FROM quests q WHERE q.quest_id = ${questId}`
       )
     })
-    actualDistanceMeters = Math.round(Number((result as any)[0]?.dist) || 0)
-    console.log(`[QuestComplete] Distance to destination (PostGIS): ${actualDistanceMeters}m`)
+    const distanceRow = (result as any).rows?.[0] ?? (result as any)[0]
+    const distance = Number(distanceRow?.dist)
+    actualDistanceMeters = Number.isFinite(distance) ? Math.round(distance) : null
   }
 
   // Ищем активную сессию
@@ -81,28 +101,22 @@ export async function POST(req: Request) {
   })
 
   if (!activeSession) {
-    const sessionId = crypto.randomUUID()
-    await executeWithRetry(async () => {
-      return db.insert(questSessions).values({
-        sessionId,
-        userId: session.user.id,
-        questId,
-        startedAt: new Date(),
+    return Response.json({ error: "No active quest session" }, { status: 409 })
+  }
+
+  const successful =
+    actualDistanceMeters !== null &&
+    actualDistanceMeters <= COMPLETION_THRESHOLD_METERS
+
+  await executeWithRetry(async () => {
+    return db
+      .update(questSessions)
+      .set({
         status: successful ? "completed" : "abandoned",
         completedAt: new Date(),
       })
-    })
-  } else {
-    await executeWithRetry(async () => {
-      return db
-        .update(questSessions)
-        .set({
-          status: successful ? "completed" : "abandoned",
-          completedAt: new Date(),
-        })
-        .where(eq(questSessions.sessionId, activeSession.sessionId))
-    })
-  }
+      .where(eq(questSessions.sessionId, activeSession.sessionId))
+  })
 
   // Рассчитываем XP
   const earnedXp = successful ? questRow.xpReward : Math.max(Math.round(questRow.xpReward * 0.1), 10)

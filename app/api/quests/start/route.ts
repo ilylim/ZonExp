@@ -1,13 +1,28 @@
 import { auth } from "@/lib/auth"
 import { eq, count, and, sql } from "drizzle-orm"
-import { randomUUID } from "crypto"
 import { getDb } from "@/db"
 import { quests, userQuestAssignments, questSessions } from "@/db/schema"
+import { z } from "zod"
 
 export const dynamic = "force-dynamic"
 
 const MAX_ACTIVE_QUESTS = 4
 const ROUTE_COLORS = ["#8b5cf6", "#ef4444", "#06b6d4", "#f59e0b"]
+
+const coordinateSchema = z.number().finite()
+
+const startQuestSchema = z
+  .object({
+    questId: z.string().trim().min(1).max(128),
+    userLat: coordinateSchema.min(-90).max(90).optional(),
+    userLng: coordinateSchema.min(-180).max(180).optional(),
+  })
+  .refine(
+    (value) =>
+      (value.userLat === undefined && value.userLng === undefined) ||
+      (value.userLat !== undefined && value.userLng !== undefined),
+    { message: "userLat and userLng must be provided together" }
+  )
 
 type QuestStartPayload = {
   questId: string
@@ -20,6 +35,26 @@ type QuestStartPayload = {
   routeDescription: string
   latitude: number
   longitude: number
+}
+
+function calculateDistanceMeters(
+  fromLat: number,
+  fromLng: number,
+  toLat: number,
+  toLng: number
+): number {
+  const earthRadiusMeters = 6371000
+  const dLat = ((toLat - fromLat) * Math.PI) / 180
+  const dLng = ((toLng - fromLng) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((fromLat * Math.PI) / 180) *
+      Math.cos((toLat * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2
+
+  return Math.round(
+    earthRadiusMeters * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  )
 }
 
 // Функция для автоматической повторной попытки при обрыве соединения
@@ -55,14 +90,14 @@ export async function POST(req: Request) {
   }
 
   try {
-    const body = await req.json()
-    const { questId, initialDistanceMeters } = body
+    const body = await req.json().catch(() => null)
+    const parsed = startQuestSchema.safeParse(body)
 
-    if (!questId) {
-      return Response.json({ error: "questId is required" }, { status: 400 })
+    if (!parsed.success) {
+      return Response.json({ error: "Invalid request" }, { status: 400 })
     }
 
-    console.log(`[StartQuest] Starting quest ${questId} for user ${session.user.id}, initialDistance: ${initialDistanceMeters}m`)
+    const { questId, userLat, userLng } = parsed.data
 
     const db = getDb()
 
@@ -101,6 +136,15 @@ export async function POST(req: Request) {
       return Response.json({ error: "Quest not found" }, { status: 404 })
     }
 
+    if (!quest.isActive) {
+      return Response.json({ error: "Quest not found" }, { status: 404 })
+    }
+
+    const initialDistanceMeters =
+      userLat !== undefined && userLng !== undefined
+        ? calculateDistanceMeters(userLat, userLng, quest.latitude, quest.longitude)
+        : 0
+
     // 2. Проверяем, нет ли уже активной сессии
     const existingSession = await executeWithRetry(async () => {
       return db.query.questSessions.findFirst({
@@ -113,7 +157,6 @@ export async function POST(req: Request) {
     })
 
     if (existingSession) {
-      console.log(`[StartQuest] Session already exists: ${existingSession.sessionId}`)
       return Response.json({
         success: true,
         sessionId: existingSession.sessionId,
@@ -166,8 +209,6 @@ export async function POST(req: Request) {
       const nextColor = ROUTE_COLORS.findIndex((_, i) => !usedColors.has(i))
       const colorIndex = nextColor >= 0 ? nextColor : 0
 
-      console.log(`[StartQuest] Creating assignment for quest ${questId}, color ${colorIndex}`)
-
       // Создаём assignment
       await executeWithRetry(async () => {
         return db.insert(userQuestAssignments).values({
@@ -186,9 +227,8 @@ export async function POST(req: Request) {
     }
 
     // 4. Создаём сессию
-    const sessionId = randomUUID()
+    const sessionId = crypto.randomUUID()
     const startedAt = new Date()
-    console.log(`[StartQuest] Creating session ${sessionId} for quest ${questId}`)
 
     await executeWithRetry(async () => {
       return db.insert(questSessions).values({
@@ -197,11 +237,9 @@ export async function POST(req: Request) {
         questId,
         startedAt,
         status: "active",
-        initialDistanceMeters: initialDistanceMeters ? Math.round(initialDistanceMeters) : null,
+        initialDistanceMeters,
       })
     })
-
-    console.log(`[StartQuest] ✅ Started quest ${questId}, session ${sessionId}`)
 
     // Возвращаем данные квеста с координатами
     return Response.json({
@@ -210,11 +248,10 @@ export async function POST(req: Request) {
       startedAt: startedAt.toISOString(),
       quest,
       routeColorIndex: assignment?.routeColorIndex ?? null,
-      initialDistanceMeters: initialDistanceMeters ? Math.round(initialDistanceMeters) : null,
+      initialDistanceMeters,
     })
   } catch (error) {
     console.error("[StartQuest] ❌ Failed to start quest:", error)
-    const errorMessage = error instanceof Error ? error.message : String(error)
-    return Response.json({ error: `Failed to start quest: ${errorMessage}` }, { status: 500 })
+    return Response.json({ error: "Internal Server Error" }, { status: 500 })
   }
 }

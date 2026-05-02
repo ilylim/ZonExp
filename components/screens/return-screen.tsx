@@ -108,7 +108,7 @@ export function ReturnScreen({ onNavigate, userName }: ReturnScreenProps) {
       <div className="p-4 space-y-2">
         <Button
           className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-          onClick={() => onNavigate("active-quest")}
+          onClick={() => onNavigate("quest-details")}
         >
           Начать квест
         </Button>

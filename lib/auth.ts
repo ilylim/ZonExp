@@ -4,11 +4,10 @@ import { compare } from "bcryptjs"
 import { eq } from "drizzle-orm"
 import { getDb } from "@/db"
 import { users } from "@/db/schema"
+import { authConfig } from "./auth.config"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  trustHost: true,
-  secret: process.env.AUTH_SECRET ?? (process.env.NODE_ENV === "development" ? "dev-insecure-auth-secret" : undefined),
-  session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -19,7 +18,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const email = credentials?.email
         const password = credentials?.password
         if (typeof email !== "string" || typeof password !== "string") {
-          throw new Error("Неверный формат email или пароля")
+          return null
         }
         
         const db = getDb()
@@ -29,12 +28,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         })
         
         if (!row) {
-          throw new Error("Пользователь с таким email не найден")
+          return null
         }
         
         const ok = await compare(password, row.passwordHash)
         if (!ok) {
-          throw new Error("Неверный пароль")
+          return null
         }
         
         return {
@@ -45,16 +44,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
-  callbacks: {
-    jwt({ token, user }) {
-      if (user?.id) token.sub = user.id
-      return token
-    },
-    session({ session, token }) {
-      if (session.user && token.sub) {
-        session.user.id = token.sub
-      }
-      return session
-    },
-  },
 })

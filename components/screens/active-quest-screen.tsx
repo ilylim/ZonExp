@@ -26,9 +26,48 @@ function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProps) {
+export function ActiveQuestScreen({ onNavigate, session: initialSession }: ActiveQuestScreenProps) {
+  const [session, setSession] = useState<StartQuestResult | undefined>(() => {
+    // Если передана полная сессия (с квестом), используем её
+    if (initialSession && initialSession.quest) {
+      return initialSession
+    }
+    return undefined
+  })
+  const [isLoading, setIsLoading] = useState(() => {
+    // Если передан только sessionId (без квеста), нужно загружать
+    return !!initialSession && !initialSession.quest
+  })
   const quest = session?.quest
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+
+  useEffect(() => {
+    // Если у нас уже есть полные данные или нет даже ID, ничего не делаем
+    if (session?.quest || !initialSession) {
+      if (session?.quest) setIsLoading(false)
+      return
+    }
+
+    const sessionId = initialSession.sessionId
+    if (!sessionId) return
+
+    const fetchSession = async () => {
+      setIsLoading(true)
+      try {
+        const res = await fetch(`/api/quest-sessions/${sessionId}`)
+        if (res.ok) {
+          const data = await res.json()
+          setSession(data)
+        }
+      } catch (error) {
+        console.error("Failed to fetch session:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchSession()
+  }, [initialSession, session?.quest])
   const [fallbackLocation, setFallbackLocation] = useState<[number, number] | null>(() => {
     if (typeof window === "undefined") return null
     try {
@@ -426,7 +465,11 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
       })
       const data = await res.json()
       if (res.ok) {
-        onNavigate("reward", { earnedXp: data.earnedXp || currentXp, quest, successful })
+        onNavigate("reward", {
+          earnedXp: data.earnedXp ?? currentXp,
+          quest,
+          successful: Boolean(data.successful),
+        })
       } else {
         console.error("Failed to complete quest:", data.error)
       }
@@ -436,6 +479,17 @@ export function ActiveQuestScreen({ onNavigate, session }: ActiveQuestScreenProp
       setIsCompleting(false)
       setShowWarning(false)
     }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-12 h-12 mx-auto border-4 border-purple-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground">Загрузка сессии...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!quest) {

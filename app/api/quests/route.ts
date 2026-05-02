@@ -5,9 +5,15 @@ import { quests, userQuestAssignments, questSessions } from "@/db/schema"
 
 export const dynamic = "force-dynamic"
 
+function debugLog(...args: unknown[]) {
+  if (process.env.NODE_ENV !== "production") {
+    console.log(...args)
+  }
+}
+
 export async function GET(req: Request) {
   try {
-    console.log("[API] GET /api/quests called")
+    debugLog("[API] GET /api/quests called")
 
     const session = await auth()
     const db = getDb()
@@ -27,7 +33,7 @@ export async function GET(req: Request) {
         .from(questSessions)
         .where(and(
           eq(questSessions.userId, userId),
-          eq(questSessions.status, "completed")
+          sql`${questSessions.status} IN ('completed', 'abandoned')`
         ))
 
       completedQuestIds = completedSessions
@@ -67,7 +73,7 @@ export async function GET(req: Request) {
 
       questsList = questsList.sort((a, b) => (a.distanceMeters || 0) - (b.distanceMeters || 0))
 
-      console.log(`[API] Found ${questsList.length} quests, sorted by PostGIS distance from (${userLat}, ${userLng})`)
+      debugLog(`[API] Found ${questsList.length} quests, sorted by PostGIS distance from (${userLat}, ${userLng})`)
     } else {
       // Без координат — просто все активные квесты, исключая выполненные
       const baseQuery = db
@@ -96,11 +102,12 @@ export async function GET(req: Request) {
 
       questsList = filteredQuests
 
-      console.log(`[API] Found ${questsList.length} quests (no location, unsorted)`)
+      debugLog(`[API] Found ${questsList.length} quests (no location, unsorted)`)
     }
 
-    // Получаем назначения пользователя
+    // Получаем назначения и активные сессии пользователя
     let assignments: { questId: string; routeColorIndex: number }[] = []
+    let activeSessions: { questId: string; sessionId: string }[] = []
 
     if (userId) {
       assignments = await db
@@ -110,27 +117,43 @@ export async function GET(req: Request) {
         })
         .from(userQuestAssignments)
         .where(eq(userQuestAssignments.userId, userId))
+
+      activeSessions = await db
+        .select({
+          questId: questSessions.questId,
+          sessionId: questSessions.sessionId,
+        })
+        .from(questSessions)
+        .where(and(
+          eq(questSessions.userId, userId),
+          eq(questSessions.status, "active")
+        ))
     }
 
     const assignmentMap = new Map(assignments.map((a) => [a.questId, a.routeColorIndex]))
+    const sessionMap = new Map(activeSessions.map((s) => [s.questId, s.sessionId]))
 
-    const result = questsList.map((q: any) => ({
-      questId: q.questId || q.quest_id,
-      title: q.title,
-      durationMinutes: q.durationMinutes || q.duration_minutes,
-      intensity: q.intensity,
-      questType: q.questType || q.quest_type,
-      xpReward: q.xpReward || q.xp_reward,
-      isActive: q.isActive ?? q.is_active,
-      routeDescription: q.routeDescription || q.route_description,
-      latitude: Number(q.latitude) || 0,
-      longitude: Number(q.longitude) || 0,
-      distanceMeters: Number(q.distanceMeters || q.distance_meters),
-      isAssigned: assignmentMap.has(q.questId || q.quest_id),
-      routeColorIndex: assignmentMap.get(q.questId || q.quest_id) ?? null,
-    }))
+    const result = questsList.map((q: any) => {
+      const qId = q.questId || q.quest_id
+      return {
+        questId: qId,
+        title: q.title,
+        durationMinutes: q.durationMinutes || q.duration_minutes,
+        intensity: q.intensity,
+        questType: q.questType || q.quest_type,
+        xpReward: q.xpReward || q.xp_reward,
+        isActive: q.isActive ?? q.is_active,
+        routeDescription: q.routeDescription || q.route_description,
+        latitude: Number(q.latitude) || 0,
+        longitude: Number(q.longitude) || 0,
+        distanceMeters: Number(q.distanceMeters || q.distance_meters),
+        isAssigned: assignmentMap.has(qId),
+        routeColorIndex: assignmentMap.get(qId) ?? null,
+        sessionId: sessionMap.get(qId) ?? null,
+      }
+    })
 
-    console.log(`[API] Returning ${result.length} quests`)
+    debugLog(`[API] Returning ${result.length} quests`)
     return Response.json({ quests: result })
 
   } catch (error) {

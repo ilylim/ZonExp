@@ -32,15 +32,11 @@ export function LoginScreen({ onNavigate }: LoginScreenProps) {
       })
 
       if (result?.error) {
-        // Определяем конкретную причину ошибки
         const errorMap: Record<string, string> = {
-          "Пользователь с таким email не найден": "Пользователь с таким email не найден. Проверьте email или зарегистрируйтесь.",
-          "Неверный пароль": "Неверный пароль. Попробуйте снова.",
-          "Неверный формат email или пароля": "Неверный формат email или пароля.",
-          "CredentialsSignin": "Неверный email или пароль. Проверьте данные и попробуйте снова.",
+          CredentialsSignin: "Неверный email или пароль. Проверьте данные и попробуйте снова.",
         }
         
-        const mappedError = errorMap[result.error] || errorMap["CredentialsSignin"] || `Ошибка входа: ${result.error}`
+        const mappedError = errorMap[result.error] || errorMap.CredentialsSignin
         setError(mappedError)
       } else if (result?.ok) {
         window.location.reload()

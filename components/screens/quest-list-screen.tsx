@@ -9,7 +9,6 @@ import { Clock, MapPin, ChevronRight, Home, Map as MapIcon, User, Target, Flag, 
 
 interface QuestListScreenProps {
   onNavigate: (screen: Screen, data?: any) => void
-  userLocation: [number, number] | null
 }
 
 interface Quest {
@@ -26,6 +25,7 @@ interface Quest {
   routeColorIndex: number | null
   distanceMeters?: number
   distance?: number
+  sessionId?: string | null
 }
 
 const intensityMap = {
@@ -34,7 +34,10 @@ const intensityMap = {
   hard: { label: "Сложный", color: "bg-red-500" },
 }
 
-export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenProps) {
+import { useMap } from "@/components/map/map-provider"
+
+export function QuestListScreen({ onNavigate }: QuestListScreenProps) {
+  const { userLocation } = useMap()
   const [quests, setQuests] = useState<Quest[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,8 +46,6 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
     setIsLoading(true)
     setError(null)
     try {
-      console.log("[QuestList] Fetching quests from API...")
-
       const url = userLocation
         ? `/api/quests?lng=${userLocation[0]}&lat=${userLocation[1]}`
         : "/api/quests"
@@ -53,7 +54,6 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
       const data = await res.json()
 
       if (res.ok && Array.isArray(data.quests)) {
-        console.log(`[QuestList] Received ${data.quests.length} quests`)
         setQuests(data.quests)
       } else {
         setError(data.error || "Не удалось загрузить квесты")
@@ -71,13 +71,8 @@ export function QuestListScreen({ onNavigate, userLocation }: QuestListScreenPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleStartActiveQuest = async (quest: Quest) => {
-    try {
-      const startedQuest = await createQuestSession(quest.questId, quest)
-      onNavigate("active-quest", startedQuest)
-    } catch (error: any) {
-      alert(error.message || "Не удалось начать квест")
-    }
+  const handleStartActiveQuest = (quest: Quest) => {
+    onNavigate("quest-details", quest)
   }
 
   const activeQuests = quests.filter((q) => q.isAssigned)

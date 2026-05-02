@@ -1,4 +1,4 @@
-import { and, count, eq, sql } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 import { auth } from "@/lib/auth"
 import { getDb } from "@/db"
 import {
@@ -68,6 +68,7 @@ export async function GET() {
   } catch {
     return Response.json({
       territory: null,
+      territories: [],
       cells: [],
       fog: { type: "FeatureCollection", features: [] },
       resolution: EXPLORATION_H3_RESOLUTION,
@@ -82,6 +83,7 @@ export async function POST(req: Request) {
   }
 
   try {
+    const start = Date.now()
     const body = await req.json()
     const lat = Number(body?.lat)
     const lng = Number(body?.lng)
@@ -95,21 +97,20 @@ export async function POST(req: Request) {
 
     const db = getDb()
     const userPoint = sql`ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)`
+    
     const territoryResult = await db.execute(sql`
-      SELECT
-        territory_id,
-        name,
-        city
+      SELECT territory_id, name, city
       FROM territories
       WHERE boundary_polygon IS NOT NULL
         AND ST_Contains(boundary_polygon, ${userPoint})
+      LIMIT 1
     `)
+    const tCheckTime = Date.now() - start
 
-    const territoryRow =
-      (territoryResult as any).rows?.[0] ??
-      (territoryResult as unknown as any[])?.[0]
+    const rows = (territoryResult as any).rows || territoryResult
+    const territoryRow = rows?.[0]
 
-    if (!territoryRow?.territory_id) {
+    if (!territoryRow || !territoryRow.territory_id) {
       return Response.json({
         discovered: false,
         reason: "outside_territory",
@@ -125,56 +126,71 @@ export async function POST(req: Request) {
         eq(userExplorationCells.h3Index, h3Index)
       ),
     })
+    const cellCheckTime = Date.now() - start
 
+    let discoveredNow = false;
     if (!existingCell) {
       await db.insert(userExplorationCells).values({
         userId: session.user.id,
         territoryId,
         h3Index,
       })
+      discoveredNow = true;
     }
+    const insertCellTime = Date.now() - start
 
-    const openedCellsCountResult = await db
-      .select({ count: count() })
-      .from(userExplorationCells)
-      .where(
-        and(
-          eq(userExplorationCells.userId, session.user.id),
-          eq(userExplorationCells.territoryId, territoryId)
-        )
-      )
-
-    const openedCellsCount = Number(openedCellsCountResult[0]?.count ?? 0)
     const lastVisitAt = new Date()
+    
+    // Используем более простой способ обновления, чтобы избежать возможных проблем с Returning + SQL-фрагментами в драйвере
+    let finalCount = 0;
+    try {
+      const stats = await db.query.userTerritoryStats.findFirst({
+        where: and(
+          eq(userTerritoryStats.userId, session.user.id),
+          eq(userTerritoryStats.territoryId, territoryId)
+        )
+      })
 
-    await db
-      .insert(userTerritoryStats)
-      .values({
-        userId: session.user.id,
-        territoryId,
-        openedCellsCount,
-        lastVisitAt,
-      })
-      .onConflictDoUpdate({
-        target: [userTerritoryStats.userId, userTerritoryStats.territoryId],
-        set: {
-          openedCellsCount,
+      if (stats) {
+        const newCount = discoveredNow ? stats.openedCellsCount + 1 : stats.openedCellsCount
+        await db.update(userTerritoryStats)
+          .set({ openedCellsCount: newCount, lastVisitAt })
+          .where(and(
+            eq(userTerritoryStats.userId, session.user.id),
+            eq(userTerritoryStats.territoryId, territoryId)
+          ))
+        finalCount = newCount
+      } else {
+        const res = await db.insert(userTerritoryStats).values({
+          userId: session.user.id,
+          territoryId,
+          openedCellsCount: 1,
           lastVisitAt,
-        },
-      })
+        }).returning({ count: userTerritoryStats.openedCellsCount })
+        finalCount = Number(res[0]?.count ?? 0)
+      }
+    } catch (statsError) {
+      console.error("[MapExploration] Stats update failed:", statsError)
+      // Не прерываем основной поток, если статистика временно недоступна
+    }
+    const statsUpdateTime = Date.now() - start
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[MapExploration] Latency: Territory=${tCheckTime}ms, Cell=${cellCheckTime}ms, InsertCell=${insertCellTime}ms, Stats=${statsUpdateTime}ms`)
+    }
 
     return Response.json({
       discovered: true,
-      discoveredNow: !existingCell,
+      discoveredNow,
       h3Index,
       territoryId,
       territoryName: String(territoryRow.name ?? ""),
       city: String(territoryRow.city ?? ""),
-      openedCellsCount,
+      openedCellsCount: finalCount,
       resolution: EXPLORATION_H3_RESOLUTION,
     })
   } catch (error) {
-    console.error("[MapExploration] Failed to discover cell:", error)
+    console.error("[MapExploration] Critical error during cell discovery:", error)
     return Response.json(
       { error: "Failed to update exploration" },
       { status: 500 }

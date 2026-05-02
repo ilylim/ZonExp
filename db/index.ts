@@ -13,19 +13,24 @@ function createPool() {
     throw new Error("DATABASE_URL is not set")
   }
 
-  console.log("[DB] Creating new PostgreSQL Pool (pg driver)")
+  if (process.env.NODE_ENV !== "production") {
+    console.log("[DB] Creating new PostgreSQL Pool (pg driver)")
+  }
 
   return new Pool({
     connectionString: url,
-    max: 5,
-    idleTimeoutMillis: 20000,
-    connectionTimeoutMillis: 10000,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 20000,
+    statement_timeout: 30000,
   })
 }
 
 export function getDb() {
   if (!globalForDb.pool) {
-    console.log("[DB] Initializing global DB connection")
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[DB] Initializing global DB connection")
+    }
     globalForDb.pool = createPool()
     globalForDb.db = drizzle(globalForDb.pool, { schema })
   }
