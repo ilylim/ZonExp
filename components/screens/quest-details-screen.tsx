@@ -176,6 +176,7 @@ export function QuestDetailsScreen({ onNavigate, quest: initialInput }: QuestDet
   }
 
   if (isLoading || !exploration) return <div className="min-h-screen flex items-center justify-center p-8"><div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" /></div>
+  if (!quest) return <div className="min-h-screen flex items-center justify-center p-8 font-bold text-muted-foreground">Квест не найден</div>
 
   const progressPercent = initialDistance > 0 ? Math.min(100, Math.max(0, ((initialDistance - distanceToTarget) / initialDistance) * 100)) : 0
   const currentXp = isAssigned ? (distanceToTarget <= 40 ? quest.xpReward : Math.round((progressPercent / 100) * quest.xpReward)) : quest.xpReward
