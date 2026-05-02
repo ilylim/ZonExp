@@ -1,12 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import type { Screen } from "@/app/page"
-import { Crown, Footprints, Sword, Sparkles, Crosshair, PawPrint, Mail, Lock, User, Eye, EyeOff } from "lucide-react"
+import { Crown, Footprints, Sword, Sparkles, Crosshair, PawPrint, Mail, Lock, User, Eye, EyeOff, Shield } from "lucide-react"
 
 interface WelcomeScreenProps {
   onNavigate: (screen: Screen) => void
@@ -17,16 +17,15 @@ interface WelcomeScreenProps {
 type OnboardingStep = "hero" | "class" | "register"
 
 const characterClasses = [
-  { id: "mage", icon: Sparkles, name: "Маг", color: "text-purple-600", description: "Мудрость и сила стихий" },
-  { id: "warrior", icon: Sword, name: "Мечник", color: "text-red-600", description: "Сила и выносливость" },
-  { id: "ranger", icon: Crosshair, name: "Стрелок", color: "text-green-600", description: "Меткость и скорость" },
-  { id: "ninja", icon: Footprints, name: "Ниндзя", color: "text-gray-800", description: "Скрытность и ловкость" },
-  { id: "shapeshifter", icon: PawPrint, name: "Оборотень", color: "text-amber-600", description: "Адаптивность и мощь" },
+  { id: "warrior", icon: Sword, name: "Воин", color: "bg-red-600 border-red-900", text: "text-red-600 dark:text-red-400", description: "Высокая защита и урон в ближнем бою." },
+  { id: "mage", icon: Sparkles, name: "Маг", color: "bg-blue-600 border-blue-900", text: "text-blue-600 dark:text-blue-400", description: "Могущественные заклинания и контроль маны." },
+  { id: "ranger", icon: Crosshair, name: "Стрелок", color: "bg-green-600 border-green-900", text: "text-green-600 dark:text-green-400", description: "Дальний бой и смертельная точность." },
+  { id: "druid", icon: PawPrint, name: "Друид", color: "bg-amber-600 border-amber-900", text: "text-amber-600 dark:text-amber-400", description: "Связь с природой и призыв существ." },
 ]
 
 export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeScreenProps) {
   const [step, setStep] = useState<OnboardingStep>("hero")
-  const [selectedClass, setSelectedClass] = useState(characterClasses[1]) // warrior by default
+  const [selectedClass, setSelectedClass] = useState(characterClasses[0])
   
   // Registration form
   const [username, setUsername] = useState("")
@@ -41,22 +40,10 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
     e.preventDefault()
     setError("")
 
-    if (!username.trim()) {
-      setError("Введите имя героя")
-      return
-    }
-    if (!email.trim()) {
-      setError("Введите email")
-      return
-    }
-    if (password !== confirmPassword) {
-      setError("Пароли не совпадают")
-      return
-    }
-    if (password.length < 8) {
-      setError("Пароль должен быть минимум 8 символов")
-      return
-    }
+    if (!username.trim()) return setError("Введите имя героя")
+    if (!email.trim()) return setError("Введите email")
+    if (password !== confirmPassword) return setError("Пароли не совпадают")
+    if (password.length < 8) return setError("Пароль должен быть минимум 8 символов")
 
     setIsLoading(true)
 
@@ -73,7 +60,6 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
       })
 
       if (res.ok) {
-        // После регистрации — автоматический вход
         const { signIn } = await import("next-auth/react")
         const result = await signIn("credentials", {
           email,
@@ -92,235 +78,262 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
           try {
             const data = JSON.parse(text)
             if (data.error === "Email already registered") {
-              setError("Этот email уже зарегистрирован. Попробуйте войти.")
+              setError("Свиток с этим email уже существует. Попробуйте войти.")
             } else {
-              setError(data.error || "Ошибка регистрации")
+              setError(data.error || "Ошибка создания персонажа")
             }
           } catch {
-            setError("Ошибка регистрации")
+            setError("Ошибка создания персонажа")
           }
         }
       }
     } catch {
-      setError("Ошибка соединения с сервером")
+      setError("Серверы перегружены монстрами (Ошибка соединения)")
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen flex flex-col relative z-10">
       {/* HEADER */}
-      <header className="sticky top-0 z-10 p-4 bg-white dark:bg-gray-950 border-b">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
-            <Crown className="w-5 h-5 text-white" />
-          </div>
-          <span className="font-bold text-lg">ZonExp</span>
-        </div>
+      <header className="sticky top-0 z-20 p-4 bg-background/80 backdrop-blur-md border-b-4 border-border flex items-center justify-between">
+        <button 
+          onClick={() => setStep("hero")}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer text-left"
+        >
+          <img src="/emblem-pixel.png" alt="ZonExp Emblem" className="w-10 h-10 sm:w-12 sm:h-12 object-contain" />
+          <span className="font-press-start text-lg sm:text-xl text-pixel-shadow text-primary">ZonExp</span>
+        </button>
       </header>
 
-      <main className="flex-1 p-6 flex flex-col items-center justify-center max-w-md mx-auto w-full">
-        {/* HERO SECTION */}
-        {step === "hero" && (
-          <div className="text-center space-y-6 w-full">
-            <div className="w-48 h-48 mx-auto bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/50 dark:to-blue-900/50 rounded-full flex items-center justify-center relative">
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-400/20 to-blue-400/20 rounded-full animate-pulse" />
-              <div className="relative">
-                <Crown className="w-20 h-20 text-purple-600 dark:text-purple-400" />
+      <main className="flex-1 p-4 md:p-6 flex flex-col items-center justify-center max-w-lg mx-auto w-full">
+        <AnimatePresence mode="wait">
+          {/* HERO SECTION */}
+          {step === "hero" && (
+            <motion.div 
+              key="hero"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="text-center space-y-8 w-full border-pixel p-8 relative overflow-hidden"
+            >
+              <div className="absolute inset-0 bg-secondary/10 pointer-events-none" />
+              
+              <motion.div 
+                animate={{ y: [0, -10, 0] }} 
+                transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                className="mx-auto flex items-center justify-center relative z-10"
+              >
+                <img src="/logo-pixel.png" alt="ZonExp Logo" className="w-48 h-48 sm:w-64 sm:h-64 object-contain drop-shadow-[0_10px_10px_rgba(0,0,0,0.3)]" />
+              </motion.div>
+              
+              <div className="space-y-4 relative z-10">
+                <h1 className="text-2xl md:text-3xl font-press-start text-pixel-shadow text-primary leading-relaxed">
+                  ТВОЙ ГОРОД — ТВОЯ RPG
+                </h1>
+                <p className="text-xl">
+                  Преврати прогулки в эпичное приключение. Выполняй квесты, сражайся с ленью, получай лут!
+                </p>
               </div>
-            </div>
-            <div className="space-y-2">
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                Твой город — твоя RPG
-              </h1>
-              <p className="text-muted-foreground text-lg">
-                Преврати прогулки по Красноярску в приключение
-              </p>
-            </div>
-            <div className="space-y-3">
-              <Button 
-                className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700" 
-                onClick={() => setStep("class")}
-              >
-                Начать приключение
-              </Button>
-              <button 
-                className="w-full h-12 text-sm text-purple-600 hover:text-purple-800 dark:hover:text-purple-400 font-medium transition-colors hover:underline"
-                onClick={() => onNavigate("login")}
-              >
-                Уже есть аккаунт? Войти
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* CLASS SELECTION */}
-        {step === "class" && (
-          <div className="text-center space-y-6 w-full">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold">Выбери класс</h2>
-              <p className="text-muted-foreground">Каждый класс уникален и будет развиваться</p>
-            </div>
-            
-            <div className="space-y-3">
-              {characterClasses.map((cls) => (
-                <button
-                  key={cls.id}
-                  onClick={() => setSelectedClass(cls)}
-                  className={cn(
-                    "w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200 text-left",
-                    selectedClass.id === cls.id
-                      ? `border-purple-500 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 shadow-md scale-[1.02] ${cls.color}`
-                      : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
-                  )}
+              
+              <div className="space-y-4 relative z-10 pt-4">
+                <Button 
+                  onClick={() => setStep("class")}
+                  className="w-full h-16 text-xl border-pixel-sm bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] transition-transform font-press-start" 
                 >
-                  <div className={cn(
-                    "w-12 h-12 rounded-xl flex items-center justify-center",
-                    selectedClass.id === cls.id
-                      ? `bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/50 dark:to-blue-900/50 ${cls.color}`
-                      : "bg-muted"
-                  )}>
-                    <cls.icon className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <p className={cn("font-semibold", selectedClass.id === cls.id ? cls.color : "")}>
-                      {cls.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{cls.description}</p>
-                  </div>
+                  НАЧАТЬ ИГРУ
+                </Button>
+                <button 
+                  className="w-full h-12 text-lg text-secondary dark:text-secondary-foreground hover:underline font-bold"
+                  onClick={() => onNavigate("login")}
+                >
+                  Уже есть сохранение? Войти
                 </button>
-              ))}
-            </div>
-
-            <Button className="w-full h-12" onClick={() => setStep("register")}>
-              Далее
-            </Button>
-            <Button variant="ghost" className="w-full" onClick={() => setStep("hero")}>
-              Назад
-            </Button>
-          </div>
-        )}
-
-        {/* REGISTRATION FORM */}
-        {step === "register" && (
-          <div className="text-center space-y-6 w-full">
-            <div className="space-y-2">
-              <div className={cn("w-16 h-16 mx-auto rounded-xl flex items-center justify-center", selectedClass.color)}>
-                <selectedClass.icon className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-bold">Создай аккаунт</h2>
-              <p className="text-muted-foreground">Класс: <span className={cn("font-medium", selectedClass.color)}>{selectedClass.name}</span></p>
-            </div>
+            </motion.div>
+          )}
 
-            <form onSubmit={handleRegister} className="space-y-4 text-left">
-              {error && (
-                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Имя героя</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="text"
-                    placeholder="Как тебя зовут?"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="pl-10 h-12"
-                    required
-                    minLength={2}
-                    maxLength={50}
-                  />
-                </div>
+          {/* CLASS SELECTION */}
+          {step === "class" && (
+            <motion.div 
+              key="class"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="w-full space-y-6"
+            >
+              <div className="border-pixel p-4 text-center bg-secondary">
+                <h2 className="text-xl font-press-start text-pixel-shadow text-secondary-foreground">ВЫБЕРИ КЛАСС</h2>
               </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Email</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type="email"
-                    placeholder="your@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Пароль</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Минимум 8 символов..."
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-12"
-                    required
-                    minLength={8}
-                    maxLength={128}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              
+              <div className="space-y-3">
+                {characterClasses.map((cls) => (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    key={cls.id}
+                    onClick={() => setSelectedClass(cls)}
+                    className={cn(
+                      "w-full flex items-center gap-4 p-3 border-pixel-sm text-left transition-colors",
+                      selectedClass.id === cls.id
+                        ? "bg-muted"
+                        : "bg-card hover:bg-muted/50"
+                    )}
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                  </button>
-                </div>
+                    <div className={cn("w-14 h-14 border-pixel-sm flex items-center justify-center", cls.color)}>
+                      <cls.icon className="w-8 h-8 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <p className={cn("font-press-start text-sm mb-2 text-pixel-shadow", cls.text)}>
+                        {cls.name}
+                      </p>
+                      <p className="text-lg leading-tight">{cls.description}</p>
+                    </div>
+                  </motion.button>
+                ))}
               </div>
 
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Подтверди пароль</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Повтори пароль..."
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pl-10 pr-10 h-12"
-                    required
-                  />
+              <div className="flex gap-4 pt-4">
+                <Button 
+                  variant="outline" 
+                  className="w-1/3 h-14 border-pixel-sm text-lg font-bold" 
+                  onClick={() => setStep("hero")}
+                >
+                  НАЗАД
+                </Button>
+                <Button 
+                  className="w-2/3 h-14 border-pixel-sm bg-primary text-primary-foreground font-press-start text-sm hover:bg-primary/90 hover:scale-[1.02] transition-transform" 
+                  onClick={() => setStep("register")}
+                >
+                  ВЫБРАТЬ
+                </Button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* REGISTRATION FORM */}
+          {step === "register" && (
+            <motion.div 
+              key="register"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              className="w-full space-y-6 border-pixel p-6"
+            >
+              <div className="text-center space-y-4">
+                <div className={cn("w-20 h-20 mx-auto border-pixel-sm flex items-center justify-center", selectedClass.color)}>
+                  <selectedClass.icon className="w-10 h-10 text-white" />
                 </div>
+                <h2 className="text-xl font-press-start text-pixel-shadow text-primary">СОЗДАНИЕ ПЕРСОНАЖА</h2>
+                <p className="text-xl">Класс: <span className={cn("font-bold", selectedClass.text)}>{selectedClass.name}</span></p>
               </div>
 
-              <Button
-                type="submit"
-                className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
-                disabled={isLoading}
-              >
-                {isLoading ? "Создание аккаунта..." : "Создать аккаунт"}
-              </Button>
-            </form>
+              <form onSubmit={handleRegister} className="space-y-5">
+                {error && (
+                  <div className="p-3 border-pixel-sm bg-destructive text-destructive-foreground text-center font-bold">
+                    {error}
+                  </div>
+                )}
 
-            <div className="text-center text-sm text-muted-foreground">
-              Уже есть аккаунт?{" "}
-              <button
-                onClick={() => onNavigate("login")}
-                className="text-purple-600 hover:text-purple-800 dark:hover:text-purple-400 font-medium underline transition-colors"
-              >
-                Войти
-              </button>
-            </div>
+                <div className="space-y-2">
+                  <label className="text-lg font-bold uppercase">Имя героя</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Имя персонажа"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      className="pl-12 h-14 text-xl border-pixel-sm bg-input text-foreground rounded-none"
+                      required
+                      minLength={2}
+                      maxLength={50}
+                    />
+                  </div>
+                </div>
 
-            <Button variant="ghost" className="w-full" onClick={() => setStep("class")}>
-              Назад к выбору класса
-            </Button>
-          </div>
-        )}
+                <div className="space-y-2">
+                  <label className="text-lg font-bold uppercase">Свиток связи (Email)</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      placeholder="your@email.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="pl-12 h-14 text-xl border-pixel-sm bg-input text-foreground rounded-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-lg font-bold uppercase">Секретный код</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground" />
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Минимум 8 рун"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pl-12 pr-12 h-14 text-xl border-pixel-sm bg-input text-foreground rounded-none"
+                      required
+                      minLength={8}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-6 h-6" /> : <Eye className="w-6 h-6" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-lg font-bold uppercase">Подтверди код</label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground" />
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Повтори код"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="pl-12 pr-12 h-14 text-xl border-pixel-sm bg-input text-foreground rounded-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-4 space-y-4">
+                  <Button
+                    type="submit"
+                    className="w-full h-14 border-pixel-sm bg-primary text-primary-foreground font-press-start hover:bg-primary/90 text-sm hover:scale-[1.02] transition-transform"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? "КОВКА..." : "СОЗДАТЬ"}
+                  </Button>
+                  
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    className="w-full h-12 border-pixel-sm font-bold text-lg" 
+                    onClick={() => setStep("class")}
+                  >
+                    НАЗАД
+                  </Button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* FOOTER */}
-      <footer className="p-4 border-t bg-white dark:bg-gray-950 text-center text-xs text-muted-foreground">
-        <a href="#" className="underline hover:text-foreground transition-colors">Политика конфиденциальности</a>
-        <span className="mx-2">•</span>
+      <footer className="p-4 border-t-4 border-border bg-card text-center text-lg font-bold">
+        <a href="#" className="hover:text-primary transition-colors">Правила гильдии (Конфиденциальность)</a>
+        <span className="mx-2 text-primary">•</span>
         <span>© 2026 ZonExp</span>
       </footer>
     </div>

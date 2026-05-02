@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -17,6 +18,7 @@ import {
   Timer,
   Footprints,
   AlertTriangle,
+  Scroll
 } from "lucide-react"
 import maplibregl from "maplibre-gl"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -26,10 +28,10 @@ interface QuestDetailsScreenProps {
   quest?: any
 }
 
-const intensityMap: Record<string, { label: string; color: string }> = {
-  light: { label: "Лёгкий", color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
-  moderate: { label: "Средний", color: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400" },
-  hard: { label: "Сложный", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+const intensityMap: Record<string, { label: string; color: string; border: string; text: string }> = {
+  light: { label: "ЛЁГКИЙ", color: "bg-emerald-600", border: "border-emerald-800", text: "text-emerald-700" },
+  moderate: { label: "СРЕДНИЙ", color: "bg-amber-500", border: "border-amber-700", text: "text-amber-600" },
+  hard: { label: "СЛОЖНЫЙ", color: "bg-red-600", border: "border-red-800", text: "text-red-600" },
 }
 
 function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -57,7 +59,7 @@ export function QuestDetailsScreen({ onNavigate, quest: initialInput }: QuestDet
   const [isCompleting, setIsCompleting] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
-  const [distanceTraveled, setDistanceTraveled] = useState(0) // TODO: track via watcher if needed
+  const [distanceTraveled, setDistanceTraveled] = useState(0)
   const [distanceToTarget, setDistanceToTarget] = useState(0)
   const [initialDistance, setInitialDistance] = useState(0)
 
@@ -131,7 +133,7 @@ export function QuestDetailsScreen({ onNavigate, quest: initialInput }: QuestDet
     map.flyTo({ center: currentLocation || questLoc, zoom: 14 })
 
     const finishEl = document.createElement("div")
-    finishEl.innerHTML = `<div style="width:32px;height:32px;background:#8b5cf6;border:3px solid white;border-radius:50%;box-shadow:0 2px 8px rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></div>`
+    finishEl.innerHTML = `<div style="width:36px;height:36px;background:#eab308;border:4px solid #1a1a1a;border-radius:0;box-shadow:4px 4px 0 0 rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" stroke-width="3" stroke-linecap="square" stroke-linejoin="miter"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>`
     questMarkerRef.current = new maplibregl.Marker({ element: finishEl }).setLngLat(questLoc).addTo(map)
 
     return () => {
@@ -175,74 +177,161 @@ export function QuestDetailsScreen({ onNavigate, quest: initialInput }: QuestDet
     }
   }
 
-  if (isLoading || !exploration) return <div className="min-h-screen flex items-center justify-center p-8"><div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin" /></div>
-  if (!quest) return <div className="min-h-screen flex items-center justify-center p-8 font-bold text-muted-foreground">Квест не найден</div>
+  if (isLoading || !exploration) return (
+    <div className="min-h-screen flex items-center justify-center p-8 bg-background">
+      <div className="w-16 h-16 border-pixel-sm bg-primary/20 flex items-center justify-center animate-pulse">
+        <Scroll className="w-8 h-8 text-primary" />
+      </div>
+    </div>
+  )
+  
+  if (!quest) return (
+    <div className="min-h-screen flex items-center justify-center p-8 bg-background">
+      <div className="border-pixel bg-destructive text-destructive-foreground p-4 font-press-start">Свиток не найден</div>
+    </div>
+  )
 
   const progressPercent = initialDistance > 0 ? Math.min(100, Math.max(0, ((initialDistance - distanceToTarget) / initialDistance) * 100)) : 0
   const currentXp = isAssigned ? (distanceToTarget <= 40 ? quest.xpReward : Math.round((progressPercent / 100) * quest.xpReward)) : quest.xpReward
+  const intensity = intensityMap[quest.intensity]
 
   return (
     <div className="min-h-screen bg-transparent flex flex-col pb-24 pointer-events-none">
-      <header className="sticky top-0 z-10 flex items-center justify-between p-4 bg-white/90 backdrop-blur-md dark:bg-gray-900/90 border-b shadow-sm shrink-0 pointer-events-auto">
-        <Button variant="ghost" size="icon" onClick={() => onNavigate(isAssigned ? "quest-map" : "quest-list")}><ArrowLeft className="w-5 h-5" /></Button>
-        <span className="font-bold truncate px-2">{isAssigned ? "Выполнение" : "Детали"}</span>
+      <header className="sticky top-0 z-10 flex items-center justify-between p-4 bg-background/90 backdrop-blur-sm border-b-4 border-border shrink-0 pointer-events-auto">
+        <Button variant="outline" size="icon" className="border-pixel-sm" onClick={() => onNavigate(isAssigned ? "quest-map" : "quest-list")}>
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <span className="font-press-start text-pixel-shadow text-primary px-2">{isAssigned ? "В ПУТИ" : "СВИТОК КВЕСТА"}</span>
         <div className="flex items-center gap-2">
-           <div className="flex items-center gap-1.5 px-3 py-1 bg-purple-50 dark:bg-purple-900/30 rounded-full border border-purple-100 dark:border-purple-800">
-             <Timer className="w-3.5 h-3.5 text-purple-600" />
-             <span className="font-mono text-sm font-bold text-purple-600">{isAssigned ? `${Math.floor(elapsedSeconds / 60).toString().padStart(2, "0")}:${(elapsedSeconds % 60).toString().padStart(2, "0")}` : "--:--"}</span>
+           <div className="flex items-center gap-1.5 px-3 py-1 bg-background border-pixel-sm">
+             <Timer className="w-4 h-4 text-accent" />
+             <span className="font-press-start text-sm text-accent">{isAssigned ? `${Math.floor(elapsedSeconds / 60).toString().padStart(2, "0")}:${(elapsedSeconds % 60).toString().padStart(2, "0")}` : "--:--"}</span>
            </div>
-           <Button variant="ghost" size="icon" onClick={() => setIsFavorite(!isFavorite)}><Heart className={cn("w-5 h-5", isFavorite && "fill-red-500 text-red-500")} /></Button>
+           <Button variant="outline" size="icon" className="border-pixel-sm" onClick={() => setIsFavorite(!isFavorite)}>
+             <Heart className={cn("w-5 h-5", isFavorite && "fill-red-500 text-red-500")} />
+           </Button>
         </div>
       </header>
 
       <main className="flex-1 overflow-y-auto pointer-events-none">
-        {/* Распорка для видимости карты */}
-        <div className="h-64 pointer-events-none flex-shrink-0" />
+        {/* Распорка для видимости карты - должна соответствовать высоте GlobalMap (280px) */}
+        <div className="h-[280px] pointer-events-none flex-shrink-0" />
         
-        {/* Контент под картой, который скроллится и перехватывает клики */}
-        <div className="bg-white/95 dark:bg-gray-950/95 backdrop-blur-xl border-t border-white/20 shadow-[0_-8px_30px_rgba(0,0,0,0.1)] pointer-events-auto min-h-[calc(100vh-16rem)] p-4 rounded-t-[2.5rem] space-y-4">
+        {/* Контент под картой */}
+        <div className="bg-card border-t-4 border-border shadow-[0_-10px_20px_rgba(0,0,0,0.5)] pointer-events-auto min-h-[calc(100vh-280px)] p-4 space-y-4 relative z-10">
           
-          <div className="w-12 h-1.5 bg-gray-300 dark:bg-gray-700 rounded-full mx-auto mb-6 opacity-50" />
+          <div className="w-16 h-2 bg-border/20 rounded-full mx-auto mb-2" />
 
           {isAssigned && (
-            <Card className="p-4 bg-white dark:bg-gray-900 border-0 shadow-lg mb-4">
+            <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2"><Footprints className="w-4 h-4 text-blue-600" /><span className="text-sm font-bold">{distanceToTarget < 1000 ? `${distanceToTarget}м` : `${(distanceToTarget / 1000).toFixed(1)}км`} до цели</span></div>
-                <span className="text-xs font-bold text-muted-foreground uppercase">{Math.round(progressPercent)}%</span>
+                <div className="flex items-center gap-2">
+                  <Footprints className="w-5 h-5 text-accent" />
+                  <span className="text-xs font-press-start uppercase text-muted-foreground">{distanceToTarget < 1000 ? `${distanceToTarget}м` : `${(distanceToTarget / 1000).toFixed(1)}км`} до цели</span>
+                </div>
+                <span className="text-sm font-press-start text-primary">{Math.round(progressPercent)}%</span>
               </div>
-              <div className="w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-purple-600 to-blue-600 transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+              <div className="w-full h-6 bg-background border-4 border-border relative overflow-hidden shadow-[2px_2px_0_0_rgba(0,0,0,0.1)]">
+                <div 
+                  className="h-full bg-primary transition-all duration-500 ease-out" 
+                  style={{ width: `${progressPercent}%` }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-white/20"></div>
+                  <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/10"></div>
+                </div>
               </div>
-            </Card>
+            </div>
           )}
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between"><h1 className="text-2xl font-black tracking-tight">{quest?.title}</h1>{quest?.intensity && intensityMap[quest.intensity] && <span className={cn("px-3 py-1 text-[10px] rounded-full font-black uppercase tracking-widest", intensityMap[quest.intensity].color)}>{intensityMap[quest.intensity].label}</span>}</div>
-            <div className="grid grid-cols-2 gap-3">
-               <Card className="p-3 flex items-center gap-3 bg-white dark:bg-gray-900 border-0 shadow-sm"><div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center"><MapPin className="w-5 h-5 text-blue-600" /></div><div><p className="text-[10px] text-muted-foreground uppercase font-black">Пройдено</p><p className="font-black text-sm">{isAssigned ? (distanceTraveled < 1000 ? `${Math.round(distanceTraveled)}м` : `${(distanceTraveled / 1000).toFixed(1)}км`) : "--"}</p></div></Card>
-               <Card className="p-3 flex items-center gap-3 bg-white dark:bg-gray-900 border-0 shadow-sm"><div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center"><Gem className="w-5 h-5 text-purple-600" /></div><div><p className="text-[10px] text-muted-foreground uppercase font-black">Награда</p><p className="font-black text-sm text-purple-600">+{currentXp} XP</p></div></Card>
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+              <h1 className="text-lg sm:text-xl font-press-start text-foreground leading-relaxed flex-1 break-words hyphens-auto">{quest?.title}</h1>
+              {quest?.intensity && intensity && (
+                <div className={`shrink-0 border-l-8 ${intensity.border} bg-background border-pixel-sm p-2 flex items-center gap-2 self-start sm:self-auto`}>
+                  <span className={`w-3 h-3 ${intensity.color} border-pixel-sm`} />
+                  <span className={`font-bold text-xs ${intensity.text}`}>{intensity.label}</span>
+                </div>
+              )}
             </div>
-            <Card className="p-5 bg-white dark:bg-gray-900 border-0 shadow-sm space-y-3"><h3 className="font-black text-sm uppercase tracking-widest flex items-center gap-2"><Trophy className="w-4 h-4 text-orange-500" />Легенда маршрута</h3><p className="text-sm text-muted-foreground leading-relaxed font-medium">{quest?.routeDescription}</p></Card>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+               <Card className="p-3 bg-[url('/pixel-pattern.png')] bg-repeat bg-[length:16px_16px] border-pixel flex items-center gap-3">
+                 <div className="w-10 h-10 bg-background border-pixel-sm flex items-center justify-center">
+                   <MapPin className="w-5 h-5 text-accent" />
+                 </div>
+                 <div>
+                   <p className="text-[10px] text-muted-foreground font-press-start leading-none mb-1">ПРОЙДЕНО</p>
+                   <p className="font-bold text-lg leading-none">{isAssigned ? (distanceTraveled < 1000 ? `${Math.round(distanceTraveled)}м` : `${(distanceTraveled / 1000).toFixed(1)}км`) : "--"}</p>
+                 </div>
+               </Card>
+               <Card className="p-3 bg-[url('/pixel-pattern.png')] bg-repeat bg-[length:16px_16px] border-pixel flex items-center gap-3">
+                 <div className="w-10 h-10 bg-background border-pixel-sm flex items-center justify-center">
+                   <Gem className="w-5 h-5 text-primary" />
+                 </div>
+                 <div>
+                   <p className="text-[10px] text-muted-foreground font-press-start leading-none mb-1">НАГРАДА</p>
+                   <p className="font-bold text-base sm:text-lg text-primary leading-none">+{currentXp} XP</p>
+                 </div>
+               </Card>
+            </div>
+            
+            <Card className="p-4 bg-muted border-pixel">
+              <h3 className="font-press-start text-sm uppercase flex items-center gap-2 mb-4 text-primary text-pixel-shadow">
+                <Trophy className="w-5 h-5 text-accent" /> Легенда квеста
+              </h3>
+              <div className="bg-background border-pixel-sm p-4">
+                <p className="text-lg font-vt323 leading-relaxed">{quest?.routeDescription}</p>
+              </div>
+            </Card>
           </div>
         </div>
       </main>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-gray-950/90 backdrop-blur-xl border-t z-50 pointer-events-auto">
-        <Button className={cn("w-full h-14 text-lg font-black uppercase tracking-widest shadow-xl", isAssigned ? "bg-gradient-to-r from-red-600 to-orange-600" : "bg-gradient-to-r from-purple-600 to-blue-600")} onClick={isAssigned ? () => setShowWarning(true) : startQuest} disabled={isStarting || isCompleting}>{isStarting ? "Запуск..." : isCompleting ? "Завершение..." : isAssigned ? "Завершить квест" : "Начать приключение"}</Button>
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t-4 border-border z-50 pointer-events-auto shadow-[0_-5px_0_rgba(0,0,0,0.5)]">
+        <Button 
+          className={`w-full h-16 text-lg font-press-start text-pixel-shadow transition-transform hover:scale-[1.02] active:scale-95 ${
+            isAssigned ? "bg-accent text-accent-foreground hover:bg-accent/90 border-pixel-sm" : "bg-primary text-primary-foreground hover:bg-primary/90 border-pixel-sm"
+          }`} 
+          onClick={isAssigned ? () => setShowWarning(true) : startQuest} 
+          disabled={isStarting || isCompleting}
+        >
+          {isStarting ? "ПОДГОТОВКА..." : isCompleting ? "ЗАВЕРШЕНИЕ..." : isAssigned ? "СДАТЬ КВЕСТ" : "НАЧАТЬ ПРИКЛЮЧЕНИЕ"}
+        </Button>
       </div>
 
-      {showWarning && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-6 text-center pointer-events-auto">
-          <Card className="w-full max-w-sm p-6 space-y-6">
-            <div className="space-y-4">
-              <div className="w-20 h-20 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto"><AlertTriangle className="w-10 h-10 text-amber-600" /></div>
-              <h3 className="text-2xl font-black uppercase">Завершить досрочно?</h3>
-              <p className="text-sm text-muted-foreground">Вы прошли {Math.round(progressPercent)}% пути. Награда: +{currentXp} XP. Квест исчезнет из списка!</p>
-            </div>
-            <div className="flex gap-3"><Button variant="outline" className="flex-1 h-12 font-black uppercase" onClick={() => setShowWarning(false)}>Отмена</Button><Button className="flex-1 h-12 font-black uppercase bg-amber-600" onClick={handleCompleteQuest}>Завершить</Button></div>
-          </Card>
-        </div>
-      )}
+      <AnimatePresence>
+        {showWarning && (
+          <motion.div 
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 text-center pointer-events-auto"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+              className="w-full max-w-sm"
+            >
+              <Card className="p-1 border-pixel shadow-2xl bg-card">
+                <div className="bg-destructive p-4 border-b-4 border-border flex items-center justify-center gap-3">
+                  <AlertTriangle className="w-8 h-8 text-destructive-foreground" />
+                  <h3 className="text-lg font-press-start text-destructive-foreground text-pixel-shadow leading-relaxed">ОТСТУПИТЬ?</h3>
+                </div>
+                <div className="p-6 bg-secondary space-y-6">
+                  <p className="text-lg font-vt323 leading-relaxed bg-background border-pixel-sm p-4">
+                    Вы прошли {Math.round(progressPercent)}% пути. Награда составит: <span className="text-primary font-bold">+{currentXp} XP</span>. Квест будет считаться завершенным!
+                  </p>
+                  <div className="flex gap-4">
+                    <Button variant="outline" className="flex-1 h-14 font-press-start text-xs border-pixel-sm" onClick={() => setShowWarning(false)}>
+                      ВЕРНУТЬСЯ
+                    </Button>
+                    <Button className="flex-1 h-14 font-press-start text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90 border-pixel-sm" onClick={handleCompleteQuest}>
+                      СДАТЬСЯ
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

@@ -1,15 +1,24 @@
 import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { VT323, Press_Start_2P } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Providers } from '@/components/providers'
 import './globals.css'
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+const vt323 = VT323({
+  weight: '400',
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-vt323',
+})
+
+const pressStart2P = Press_Start_2P({
+  weight: '400',
+  subsets: ['latin', 'cyrillic'],
+  variable: '--font-press-start',
+})
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'ZonExp - RPG Quests',
+  description: 'Geolocation RPG Quests',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -36,8 +45,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className="font-sans antialiased">
+    <html lang="ru">
+      <body className={`${vt323.variable} ${pressStart2P.variable} font-vt323 antialiased bg-background text-foreground text-xl`}>
         <Providers>{children}</Providers>
         <Analytics />
       </body>

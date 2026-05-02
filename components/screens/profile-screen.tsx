@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { Screen } from "@/app/page"
-import { Settings, Lock, Map, User, LogOut, ChevronRight, Trophy, Footprints, Sparkles, Calendar, Bell, Home, X } from "lucide-react"
+import { Settings, Lock, Map, User, LogOut, ChevronRight, Trophy, Footprints, Sparkles, Calendar, Bell, Home, X, Shield, Target } from "lucide-react"
 
 interface ProfileScreenProps {
   onNavigate: (screen: Screen) => void
@@ -16,19 +17,19 @@ interface ProfileScreenProps {
 }
 
 const territories = [
-  { name: "Центр Красноярска", unlocked: true },
-  { name: "Столбы", unlocked: false, level: 5 },
-  { name: "Остров Татышев", unlocked: false, level: 8 },
-  { name: "Бобровый лог", unlocked: false, level: 10 },
+  { name: "Старый город (Центр)", unlocked: true, level: 1 },
+  { name: "Каменные Исполины (Столбы)", unlocked: false, level: 5 },
+  { name: "Остров Сусликов (Татышев)", unlocked: false, level: 8 },
+  { name: "Снежные Склоны (Бобровый лог)", unlocked: false, level: 10 },
 ]
 
 const badges = [
-  { id: 1, icon: Trophy, name: "Первопроходец", unlocked: true },
-  { id: 2, icon: Sparkles, name: "Звезда недели", unlocked: true },
+  { id: 1, icon: Trophy, name: "Первая Кровь", unlocked: true },
+  { id: 2, icon: Sparkles, name: "Герой Недели", unlocked: true },
   { id: 3, icon: Footprints, name: "Марафонец", unlocked: true },
-  { id: 4, icon: Map, name: "Ночной странник", unlocked: false },
-  { id: 5, icon: Trophy, name: "Снайпер", unlocked: false },
-  { id: 6, icon: User, name: "Король района", unlocked: false },
+  { id: 4, icon: Map, name: "Ночной Дозор", unlocked: false },
+  { id: 5, icon: Trophy, name: "Меткий Лук", unlocked: false },
+  { id: 6, icon: Shield, name: "Страж Города", unlocked: false },
 ]
 
 export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userXp, userCompletedQuests }: ProfileScreenProps) {
@@ -38,140 +39,183 @@ export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userX
 
   const totalSteps = userCompletedQuests * 1875
   const totalDistance = (userCompletedQuests * 1.8).toFixed(1)
+  const userDaysInGame = Math.max(Math.floor(userXp / 100), 1) // Calculated or mock value
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col relative z-10 pb-20">
       {/* HEADER */}
-      <header className="sticky top-0 z-10 flex items-center justify-between p-4 border-b bg-white dark:bg-gray-950 shrink-0">
-        <h1 className="text-xl font-bold">Профиль</h1>
+      <header className="sticky top-0 z-20 flex items-center justify-between p-4 bg-background/90 backdrop-blur-sm border-b-4 border-border">
+        <button 
+          onClick={() => onNavigate("quest-map")}
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+        >
+          <img src="/emblem-pixel.png" alt="Emblem" className="w-10 h-10 object-contain" />
+          <h1 className="text-lg sm:text-xl font-press-start text-pixel-shadow text-primary uppercase text-left">Герой</h1>
+        </button>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon">
+          <Button variant="outline" size="icon" className="border-pixel-sm">
             <Bell className="w-5 h-5" />
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => setShowSettings(true)}>
+          <Button variant="outline" size="icon" onClick={() => setShowSettings(true)} className="border-pixel-sm">
             <Settings className="w-5 h-5" />
           </Button>
         </div>
       </header>
 
       {/* SETTINGS MODAL */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center">
-          <div className="bg-white dark:bg-gray-900 w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 z-50 bg-white dark:bg-gray-900 p-4 border-b flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Настройки</h2>
-              <button onClick={() => setShowSettings(false)} className="p-2 hover:bg-muted rounded-full">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-4 space-y-2">
-              <Button variant="outline" className="w-full justify-between">
-                Настройки аккаунта
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" className="w-full justify-between">
-                Помощь и поддержка
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-between border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-800 dark:hover:bg-red-900/20"
-                onClick={() => { onLogout(); setShowSettings(false) }}
-              >
-                <span className="flex items-center gap-2">
-                  <LogOut className="w-4 h-4" />
-                  Выйти из аккаунта
-                </span>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-card w-full max-w-sm border-pixel p-1 shadow-2xl"
+            >
+              <div className="bg-secondary p-4 border-b-4 border-border flex items-center justify-between">
+                <h2 className="text-lg font-press-start text-secondary-foreground text-pixel-shadow">ОПЦИИ</h2>
+                <button onClick={() => setShowSettings(false)} className="p-1 hover:bg-black/20 transition-colors">
+                  <X className="w-6 h-6 text-secondary-foreground" />
+                </button>
+              </div>
+              <div className="p-4 space-y-3 bg-card">
+                <Button variant="outline" className="w-full justify-between h-14 border-pixel-sm font-bold text-lg">
+                  Гримуар (Аккаунт)
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+                <Button variant="outline" className="w-full justify-between h-14 border-pixel-sm font-bold text-lg">
+                  Совет Мудрецов (Поддержка)
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full justify-between h-14 border-pixel-sm bg-destructive text-destructive-foreground hover:bg-destructive/80 font-bold text-lg mt-4"
+                  onClick={() => { onLogout(); setShowSettings(false) }}
+                >
+                  <span className="flex items-center gap-2">
+                    <LogOut className="w-5 h-5" />
+                    Покинуть игру
+                  </span>
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      <main className="flex-1 overflow-y-auto pb-20">
+      <main className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* PROFILE HERO */}
-        <div className="p-6 text-center bg-gradient-to-br from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-b">
-          <div className="w-24 h-24 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-            {userName.charAt(0).toUpperCase()}
-          </div>
-          <h2 className="text-2xl font-bold mb-1">{userName}</h2>
-          <p className="text-3xl font-bold mb-3 bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-            Уровень {userLevel}
-          </p>
-          <div className="max-w-xs mx-auto">
-            <div className="flex justify-between text-sm mb-1">
-              <span className="text-muted-foreground">Прогресс</span>
-              <span>{userXp} / {xpForNextLevel} XP</span>
+        <div className="p-6 text-center border-pixel bg-secondary relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('/pixel-pattern.png')] opacity-10 mix-blend-overlay"></div>
+
+          <motion.div
+            animate={{ y: [0, -5, 0] }}
+            transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
+            className="w-24 h-24 mx-auto mb-4 border-pixel bg-primary flex items-center justify-center shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] relative z-10"
+          >
+            <span className="font-press-start text-4xl text-primary-foreground text-pixel-shadow">
+              {userName.charAt(0).toUpperCase()}
+            </span>
+          </motion.div>
+
+          <div className="relative z-10 px-2">
+            <h2 className="text-xl sm:text-2xl font-press-start text-secondary-foreground mb-2 text-pixel-shadow uppercase break-words hyphens-auto">{userName}</h2>
+            <div className="inline-block bg-background border-pixel-sm px-2 sm:px-4 py-1 mb-4">
+              <span className="text-lg sm:text-xl font-bold text-primary">УРОВЕНЬ {userLevel}</span>
             </div>
-            <div className="w-full h-3 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-full transition-all duration-500"
-                style={{ width: `${xpPercentage}%` }}
-              />
+
+            <div className="max-w-xs mx-auto bg-card border-pixel-sm p-3">
+              <div className="flex justify-between text-sm mb-2 font-bold uppercase">
+                <span>ОПЫТ</span>
+                <span className="text-primary">{userXp} / {xpForNextLevel}</span>
+              </div>
+              <div className="w-full h-4 bg-muted border-2 border-border overflow-hidden">
+                <div
+                  className="h-full bg-primary relative"
+                  style={{ width: `${xpPercentage}%` }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-white/30"></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         {/* STATS SECTION */}
-        <div className="p-4 border-b">
-          <h3 className="text-lg font-semibold mb-4">Статистика</h3>
-          <div className="grid grid-cols-2 gap-3">
-            <Card className="p-4 text-center hover:shadow-md transition-all">
-              <div className="w-10 h-10 mx-auto mb-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center">
-                <Trophy className="w-5 h-5 text-purple-600" />
+        <div>
+          <h3 className="text-xl font-press-start text-primary text-pixel-shadow mb-4 uppercase">Статистика</h3>
+          <div className="grid grid-cols-2 gap-4">
+            <Card className="p-3 sm:p-4 text-center border-pixel-sm bg-card hover:bg-muted transition-colors cursor-pointer group">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 bg-primary border-pixel-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Target className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
               </div>
-              <span className="text-2xl font-bold">{userCompletedQuests}</span>
-              <p className="text-xs text-muted-foreground mt-1">Квестов</p>
+              <span className="text-xl sm:text-3xl font-press-start text-primary truncate block">{userCompletedQuests}</span>
+              <p className="text-[10px] sm:text-sm font-bold uppercase mt-1 sm:mt-2 text-muted-foreground">Квестов</p>
             </Card>
-            <Card className="p-4 text-center hover:shadow-md transition-all">
-              <div className="w-10 h-10 mx-auto mb-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg flex items-center justify-center">
-                <Footprints className="w-5 h-5 text-blue-600" />
+
+            <Card className="p-3 sm:p-4 text-center border-pixel-sm bg-card hover:bg-muted transition-colors cursor-pointer group">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 bg-accent border-pixel-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Footprints className="w-5 h-5 sm:w-6 sm:h-6 text-accent-foreground" />
               </div>
-              <span className="text-2xl font-bold">{totalSteps.toLocaleString()}</span>
-              <p className="text-xs text-muted-foreground mt-1">Шагов</p>
+              <span className="text-lg sm:text-2xl font-press-start text-accent pt-1 truncate block">{totalSteps > 9999 ? "9999+" : totalSteps}</span>
+              <p className="text-[10px] sm:text-sm font-bold uppercase mt-1 sm:mt-2 text-muted-foreground">Шагов</p>
             </Card>
-            <Card className="p-4 text-center hover:shadow-md transition-all">
-              <div className="w-10 h-10 mx-auto mb-2 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-green-600" />
+
+            <Card className="p-3 sm:p-4 text-center border-pixel-sm bg-card hover:bg-muted transition-colors cursor-pointer group">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 bg-emerald-600 border-pixel-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold">{userXp.toLocaleString()}</span>
-              <p className="text-xs text-muted-foreground mt-1">XP</p>
+              <span className="text-lg sm:text-2xl font-press-start text-emerald-600 pt-1 truncate block">{userXp > 9999 ? "9999+" : userXp}</span>
+              <p className="text-[10px] sm:text-sm font-bold uppercase mt-1 sm:mt-2 text-muted-foreground">Опыта (XP)</p>
             </Card>
-            <Card className="p-4 text-center hover:shadow-md transition-all">
-              <div className="w-10 h-10 mx-auto mb-2 bg-orange-100 dark:bg-orange-900/50 rounded-lg flex items-center justify-center">
-                <Calendar className="w-5 h-5 text-orange-600" />
+
+            <Card className="p-3 sm:p-4 text-center border-pixel-sm bg-card hover:bg-muted transition-colors cursor-pointer group">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 bg-amber-600 border-pixel-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
               </div>
-              <span className="text-2xl font-bold">{Math.max(userCompletedQuests, 1)}</span>
-              <p className="text-xs text-muted-foreground mt-1">Дней активно</p>
+              <span className="text-lg sm:text-2xl font-press-start text-amber-600 pt-1 truncate block">{userDaysInGame}</span>
+              <p className="text-[10px] sm:text-sm font-bold uppercase mt-1 sm:mt-2 text-muted-foreground">Дней в игре</p>
             </Card>
           </div>
         </div>
 
         {/* TERRITORIES SECTION */}
-        <div className="p-4 border-b">
-          <h3 className="text-lg font-semibold mb-4">Открытые территории</h3>
-          <div className="space-y-2">
+        <div>
+          <h3 className="text-xl font-press-start text-primary text-pixel-shadow mb-4 uppercase">Земли</h3>
+          <div className="space-y-3">
             {territories.map((territory) => (
               <div
                 key={territory.name}
-                className="flex items-center justify-between p-3 rounded-lg border hover:shadow-md transition-all cursor-pointer"
+                className={`flex items-center justify-between p-3 border-pixel-sm transition-transform hover:scale-[1.01] cursor-pointer ${territory.unlocked ? "bg-card" : "bg-muted opacity-80"
+                  }`}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${territory.unlocked ? "bg-purple-100 dark:bg-purple-900/50" : "bg-muted"}`}>
-                    <Map className={`w-4 h-4 ${territory.unlocked ? "text-purple-600" : "text-muted-foreground"}`} />
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 border-pixel-sm flex items-center justify-center ${territory.unlocked ? "bg-primary" : "bg-slate-700"
+                    }`}>
+                    <Map className={`w-6 h-6 ${territory.unlocked ? "text-primary-foreground" : "text-slate-400"}`} />
                   </div>
-                  <span className={territory.unlocked ? "" : "text-muted-foreground"}>
-                    {territory.name}
-                  </span>
+                  <div className="flex flex-col">
+                    <span className={`font-bold text-lg ${territory.unlocked ? "text-foreground" : "text-muted-foreground"}`}>
+                      {territory.name}
+                    </span>
+                    {!territory.unlocked && (
+                      <span className="text-xs font-press-start text-destructive mt-1">
+                        НУЖЕН УР {territory.level}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {!territory.unlocked && (
-                    <span className="text-xs text-muted-foreground">
-                      Уровень {territory.level}
-                    </span>
+                  {territory.unlocked ? (
+                    <ChevronRight className="w-6 h-6 text-primary" />
+                  ) : (
+                    <Lock className="w-5 h-5 text-muted-foreground" />
                   )}
-                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
                 </div>
               </div>
             ))}
@@ -179,57 +223,63 @@ export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userX
         </div>
 
         {/* BADGES SECTION */}
-        <div className="p-4 border-b">
-          <h3 className="text-lg font-semibold mb-4">Коллекция бейджей</h3>
-          <div className="flex gap-3 overflow-x-auto pb-2">
+        <div>
+          <h3 className="text-xl font-press-start text-primary text-pixel-shadow mb-4 uppercase">Трофеи</h3>
+          <div className="flex gap-4 overflow-x-auto pb-4 pt-2 px-1 snap-x">
             {badges.map((badge) => (
               <div
                 key={badge.id}
-                className={`flex flex-col items-center shrink-0 p-3 rounded-lg border-2 ${badge.unlocked
-                    ? "border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20"
-                    : "border-muted bg-muted/50 opacity-50"
+                className={`flex flex-col items-center shrink-0 w-28 snap-center ${badge.unlocked ? "opacity-100" : "opacity-50 grayscale"
                   }`}
               >
-                <div className="relative">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${badge.unlocked ? "bg-purple-100 dark:bg-purple-900/50" : "bg-muted"}`}>
-                    <badge.icon className={`w-6 h-6 ${badge.unlocked ? "text-purple-600" : "text-muted-foreground"}`} />
+                <div className="relative mb-2">
+                  <div className={`w-20 h-20 border-pixel-sm flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,0.5)] ${badge.unlocked ? "bg-accent" : "bg-muted"
+                    }`}>
+                    <badge.icon className={`w-10 h-10 ${badge.unlocked ? "text-accent-foreground" : "text-muted-foreground"}`} />
                   </div>
                   {!badge.unlocked && (
-                    <Lock className="absolute -bottom-1 -right-1 w-4 h-4 text-muted-foreground" />
+                    <div className="absolute -bottom-2 -right-2 bg-background border-pixel-sm p-1">
+                      <Lock className="w-4 h-4 text-destructive" />
+                    </div>
                   )}
                 </div>
-                <span className="text-xs mt-2 text-center max-w-[80px] truncate">
+                <span className="text-sm font-bold text-center leading-tight">
                   {badge.name}
                 </span>
               </div>
             ))}
           </div>
         </div>
-
-        {/* SETTINGS LINKS - removed, now in modal */}
       </main>
 
       {/* BOTTOM NAVIGATION */}
-      <nav className="fixed bottom-0 left-0 right-0 flex items-center justify-around p-3 border-t bg-white dark:bg-gray-950 z-40">
+      <nav className="fixed bottom-0 left-0 right-0 flex items-center justify-around p-2 border-t-4 border-border bg-card z-40">
         <button
-          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+          className="flex flex-col items-center gap-1 p-2 text-muted-foreground hover:text-primary transition-colors group"
           onClick={() => onNavigate("quest-map")}
         >
-          <Home className="w-6 h-6" />
-          <span className="text-xs">Главная</span>
+          <div className="group-hover:-translate-y-1 transition-transform">
+            <Home className="w-7 h-7" />
+          </div>
+          <span className="text-xs font-bold uppercase">Карта</span>
         </button>
         <button
-          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+          className="flex flex-col items-center gap-1 p-2 text-muted-foreground hover:text-primary transition-colors group"
           onClick={() => onNavigate("quest-list")}
         >
-          <Map className="w-6 h-6" />
-          <span className="text-xs">Квесты</span>
+          <div className="group-hover:-translate-y-1 transition-transform">
+            <Map className="w-7 h-7" />
+          </div>
+          <span className="text-xs font-bold uppercase">Квесты</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-purple-600">
-          <User className="w-6 h-6" />
-          <span className="text-xs font-medium">Профиль</span>
+        <button className="flex flex-col items-center gap-1 p-2 text-primary">
+          <div className="-translate-y-1">
+            <User className="w-7 h-7 drop-shadow-[0_2px_0_rgba(0,0,0,0.5)]" />
+          </div>
+          <span className="text-xs font-bold uppercase underline decoration-2 underline-offset-4">Герой</span>
         </button>
       </nav>
     </div>
   )
 }
+

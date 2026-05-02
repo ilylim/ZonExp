@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import type { Screen } from "@/app/page"
@@ -29,122 +30,132 @@ export function ReturnScreen({ onNavigate, userName }: ReturnScreenProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 dark:from-gray-950 dark:to-gray-900 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col relative z-10 pb-20">
+      <div className="absolute inset-0 bg-[url('/pixel-pattern.png')] opacity-5 mix-blend-overlay pointer-events-none"></div>
+      
       {/* HEADER - Empty for focus */}
       <header className="h-4" />
 
-      <main className="flex-1 p-6 flex flex-col items-center justify-center">
+      <main className="flex-1 p-4 flex flex-col items-center justify-center relative z-10">
         {/* WELCOME HERO */}
-        <div className="text-center space-y-4 mb-8">
-          <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-400 to-blue-400 rounded-full flex items-center justify-center shadow-xl animate-pulse">
-            <Heart className="w-10 h-10 text-white" />
+        <motion.div 
+          initial={{ y: -20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="text-center space-y-4 mb-8 w-full max-w-sm"
+        >
+          <div className="w-24 h-24 mx-auto border-pixel bg-accent flex items-center justify-center shadow-[4px_4px_0_0_rgba(0,0,0,0.5)] animate-pulse">
+            <Heart className="w-12 h-12 text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.3)]" />
           </div>
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">С возвращением, {userName}!</h1>
-            <p className="text-muted-foreground text-lg">Мы скучали!</p>
+          <div className="space-y-2 bg-card border-pixel-sm p-4 inline-block mx-auto">
+            <h1 className="text-xl font-press-start text-primary text-pixel-shadow leading-relaxed uppercase">С ВОЗВРАЩЕНИЕМ,<br/>{userName}!</h1>
+            <p className="font-bold text-muted-foreground uppercase">Гильдия ждала тебя!</p>
           </div>
-        </div>
+        </motion.div>
 
         {/* SUPPORT MESSAGE */}
-        <Card className="w-full max-w-sm p-6 border-0 shadow-lg mb-6 text-center">
-          <div className="w-12 h-12 mx-auto mb-4 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
-            <Crown className="w-6 h-6 text-purple-600" />
-          </div>
-          <p className="text-sm text-muted-foreground mb-2">
-            Перерывы — это нормально. Главное — вернуться.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            Твой прогресс сохранён, а персонаж ждёт новых приключений.
-          </p>
-        </Card>
-
-        {/* SPECIAL QUEST */}
-        <div className="w-full max-w-sm mb-6">
-          <h2 className="text-lg font-semibold mb-3 text-center">Мягкий старт</h2>
-          <Card
-            className="p-4 border-0 shadow-lg cursor-pointer hover:shadow-xl transition-all"
-            onClick={() => onNavigate("quest-details")}
-          >
-            <div className="h-2 bg-gradient-to-r from-green-400 to-emerald-500 rounded-t-xl -mx-4 -mt-4 mb-4" />
-            <h3 className="font-medium mb-3">Прогулка по району</h3>
-            <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
-              <span className="flex items-center gap-1">
-                <Clock className="w-4 h-4" />
-                10 мин
-              </span>
-              <span className="flex items-center gap-1 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-full text-xs font-medium">
-                Лёгкий
-              </span>
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="w-full max-w-sm mb-6"
+        >
+          <Card className="p-4 border-pixel bg-secondary text-center">
+            <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+              <img src="/emblem-pixel.png" alt="Emblem" className="w-full h-full object-contain" />
             </div>
-            <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl">
-              <div className="flex items-center gap-2">
-                <Gem className="w-5 h-5 text-purple-600" />
-                <span className="text-sm font-medium">+100 XP + Бонус возвращения</span>
-              </div>
-              <ChevronRight className="w-5 h-5 text-purple-600" />
-            </div>
+            <p className="text-sm font-bold text-secondary-foreground mb-2 uppercase">
+              Отдых у костра окончен.
+            </p>
+            <p className="text-sm font-vt323 text-lg text-muted-foreground">
+              Твой прогресс сохранён в свитках, а мир ждёт новых свершений.
+            </p>
           </Card>
-        </div>
+        </motion.div>
 
         {/* BONUS SECTION */}
-        <Card className="w-full max-w-sm p-4 border-0 shadow-lg bg-gradient-to-r from-purple-500 to-blue-500 text-white">
-          <div className="text-center">
-            <h3 className="font-semibold mb-2">Бонус за возвращение</h3>
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                <Gem className="w-6 h-6" />
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="w-full max-w-sm mb-6"
+        >
+          <Card className="p-0 border-pixel bg-card overflow-hidden">
+            <div className="bg-accent p-3 border-b-4 border-border text-center">
+              <h3 className="font-press-start text-xs text-white text-pixel-shadow">ДАР ВОЗВРАЩЕНИЯ</h3>
+            </div>
+            <div className="p-5 text-center bg-[url('/pixel-pattern.png')] bg-repeat bg-[length:16px_16px]">
+              <div className="flex items-center justify-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-background border-pixel-sm flex items-center justify-center">
+                  <Gem className="w-8 h-8 text-accent" />
+                </div>
+                <span className="text-2xl font-press-start text-accent drop-shadow-[0_2px_0_rgba(0,0,0,0.8)]">+50 XP</span>
               </div>
-              <span className="text-xl font-bold">+50 XP к первому квесту</span>
+              <p className="font-bold mb-4 uppercase">Бонус к первому квесту!</p>
+              <div className="inline-flex items-center justify-center gap-2 text-sm bg-background border-pixel-sm px-4 py-2">
+                <Timer className="w-5 h-5 text-destructive" />
+                <span className="font-press-start text-xs text-destructive">ТАЙМЕР: {formatTimeLeft(timeLeft)}</span>
+              </div>
             </div>
-            <div className="flex items-center justify-center gap-2 text-sm bg-white/10 rounded-full px-4 py-2">
-              <Timer className="w-4 h-4" />
-              <span>Действует {formatTimeLeft(timeLeft)}</span>
+          </Card>
+        </motion.div>
+
+        {/* SPECIAL QUEST */}
+        <motion.div 
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="w-full max-w-sm mb-6"
+        >
+          <h2 className="text-sm font-press-start mb-3 text-center text-pixel-shadow text-primary">ЛЕГКИЙ СТАРТ</h2>
+          <Card
+            className="p-0 border-pixel bg-card cursor-pointer hover:bg-muted transition-colors group"
+            onClick={() => onNavigate("quest-details")}
+          >
+            <div className="h-3 bg-green-500 border-b-4 border-border" />
+            <div className="p-4">
+              <h3 className="font-bold text-lg uppercase mb-3 group-hover:text-primary transition-colors">Патруль района</h3>
+              <div className="flex items-center gap-4 text-sm font-bold text-muted-foreground mb-4">
+                <span className="flex items-center gap-1 bg-background border-pixel-sm px-2 py-1">
+                  <Clock className="w-4 h-4 text-accent" />
+                  10 мин
+                </span>
+                <span className="flex items-center gap-1 px-2 py-1 bg-background border-pixel-sm border-l-4 border-l-green-500 text-green-600 text-xs">
+                  ЛЁГКИЙ
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-secondary border-pixel-sm">
+                <div className="flex items-center gap-2">
+                  <Gem className="w-5 h-5 text-primary" />
+                  <span className="text-xs font-press-start text-primary">100 XP + БОНУС</span>
+                </div>
+                <ChevronRight className="w-6 h-6 text-primary group-hover:translate-x-1 transition-transform" />
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </motion.div>
       </main>
 
       {/* CTA SECTION */}
-      <div className="p-4 space-y-2">
+      <motion.div 
+        initial={{ y: 50, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.6 }}
+        className="fixed bottom-0 left-0 right-0 p-4 bg-background border-t-4 border-border z-50 pointer-events-auto space-y-3 shadow-[0_-5px_0_rgba(0,0,0,0.5)]"
+      >
         <Button
-          className="w-full h-12 text-lg bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700"
+          className="w-full h-16 text-lg font-press-start text-pixel-shadow bg-primary text-primary-foreground hover:bg-primary/90 border-pixel-sm"
           onClick={() => onNavigate("quest-details")}
         >
-          Начать квест
+          НАЧАТЬ ПАТРУЛЬ
         </Button>
         <Button
-          variant="ghost"
-          className="w-full"
+          variant="outline"
+          className="w-full h-14 font-bold uppercase border-pixel-sm"
           onClick={() => onNavigate("quest-map")}
         >
-          Позже
+          ИЗУЧИТЬ КАРТУ
         </Button>
-      </div>
-
-      {/* BOTTOM NAVIGATION */}
-      <nav className="flex items-center justify-around p-3 border-t bg-white dark:bg-gray-950">
-        <button
-          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => onNavigate("quest-map")}
-        >
-          <Home className="w-6 h-6" />
-          <span className="text-xs">Главная</span>
-        </button>
-        <button
-          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => onNavigate("quest-details")}
-        >
-          <MapIcon className="w-6 h-6" />
-          <span className="text-xs">Квесты</span>
-        </button>
-        <button
-          className="flex flex-col items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
-          onClick={() => onNavigate("profile")}
-        >
-          <User className="w-6 h-6" />
-          <span className="text-xs">Профиль</span>
-        </button>
-      </nav>
+      </motion.div>
     </div>
   )
 }
