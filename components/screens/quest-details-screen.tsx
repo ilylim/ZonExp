@@ -204,8 +204,8 @@ export function QuestDetailsScreen({ onNavigate, quest: initialInput }: QuestDet
         <span className="font-press-start text-pixel-shadow text-primary px-2">{isAssigned ? "В ПУТИ" : "СВИТОК КВЕСТА"}</span>
         <div className="flex items-center gap-2">
            <div className="flex items-center gap-1.5 px-3 py-1 bg-background border-pixel-sm">
-             <Timer className="w-4 h-4 text-accent" />
-             <span className="font-press-start text-sm text-accent">{isAssigned ? `${Math.floor(elapsedSeconds / 60).toString().padStart(2, "0")}:${(elapsedSeconds % 60).toString().padStart(2, "0")}` : "--:--"}</span>
+             <Timer className="w-4 h-4 text-amber-800" />
+             <span className="font-press-start text-sm text-amber-900">{isAssigned ? `${Math.floor(elapsedSeconds / 60).toString().padStart(2, "0")}:${(elapsedSeconds % 60).toString().padStart(2, "0")}` : "--:--"}</span>
            </div>
            <Button variant="outline" size="icon" className="border-pixel-sm" onClick={() => setIsFavorite(!isFavorite)}>
              <Heart className={cn("w-5 h-5", isFavorite && "fill-red-500 text-red-500")} />
@@ -226,8 +226,8 @@ export function QuestDetailsScreen({ onNavigate, quest: initialInput }: QuestDet
             <div className="mb-6">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <Footprints className="w-5 h-5 text-accent" />
-                  <span className="text-xs font-press-start uppercase text-muted-foreground">{distanceToTarget < 1000 ? `${distanceToTarget}м` : `${(distanceToTarget / 1000).toFixed(1)}км`} до цели</span>
+                  <Footprints className="w-5 h-5 text-amber-700" />
+                  <span className="text-xs font-press-start uppercase text-slate-700">{distanceToTarget < 1000 ? `${distanceToTarget}м` : `${(distanceToTarget / 1000).toFixed(1)}км`} до цели</span>
                 </div>
                 <span className="text-sm font-press-start text-primary">{Math.round(progressPercent)}%</span>
               </div>
@@ -257,7 +257,7 @@ export function QuestDetailsScreen({ onNavigate, quest: initialInput }: QuestDet
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                <Card className="p-3 bg-[url('/pixel-pattern.png')] bg-repeat bg-[length:16px_16px] border-pixel flex items-center gap-3">
                  <div className="w-10 h-10 bg-background border-pixel-sm flex items-center justify-center">
-                   <MapPin className="w-5 h-5 text-accent" />
+                   <MapPin className="w-5 h-5 text-amber-700" />
                  </div>
                  <div>
                    <p className="text-[10px] text-muted-foreground font-press-start leading-none mb-1">ПРОЙДЕНО</p>

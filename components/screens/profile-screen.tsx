@@ -84,24 +84,33 @@ export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userX
                 </button>
               </div>
               <div className="p-4 space-y-3 bg-card">
-                <Button variant="outline" className="w-full justify-between h-14 border-pixel-sm font-bold text-lg">
-                  Гримуар (Аккаунт)
-                  <ChevronRight className="w-5 h-5" />
-                </Button>
-                <Button variant="outline" className="w-full justify-between h-14 border-pixel-sm font-bold text-lg">
-                  Совет Мудрецов (Поддержка)
-                  <ChevronRight className="w-5 h-5" />
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-between h-14 border-pixel-sm bg-destructive text-destructive-foreground hover:bg-destructive/80 font-bold text-lg mt-4"
+                <button 
+                  onClick={() => {}} 
+                  className="w-full flex items-center justify-between min-h-[3.5rem] py-2 px-4 border-pixel-sm bg-background hover:bg-muted font-bold text-base sm:text-lg text-left whitespace-normal transition-colors"
+                >
+                  <span className="flex-1 pr-2">Гримуар (Аккаунт)</span>
+                  <ChevronRight className="w-5 h-5 shrink-0 text-primary" />
+                </button>
+
+                <button 
+                  onClick={() => {}} 
+                  className="w-full flex items-center justify-between min-h-[3.5rem] py-2 px-4 border-pixel-sm bg-background hover:bg-muted font-bold text-xs sm:text-base text-left whitespace-normal transition-colors leading-tight"
+                >
+                  <span className="flex-1 pr-2">Совет Мудрецов (Поддержка)</span>
+                  <ChevronRight className="w-5 h-5 shrink-0 text-primary" />
+                </button>
+
+                <button
+                  style={{ backgroundColor: '#991b1b' }}
+                  className="w-full flex items-center justify-between min-h-[3.5rem] py-2 px-4 border-pixel-sm text-white font-bold text-lg mt-4 shadow-[4px_4px_0_0_rgba(0,0,0,0.3)] active:translate-x-1 active:translate-y-1 active:shadow-none transition-all"
                   onClick={() => { onLogout(); setShowSettings(false) }}
                 >
-                  <span className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                     <LogOut className="w-5 h-5" />
-                    Покинуть игру
-                  </span>
-                </Button>
+                    <span>Покинуть игру</span>
+                  </div>
+                  <ChevronRight className="w-5 h-5" />
+                </button>
               </div>
             </motion.div>
           </motion.div>

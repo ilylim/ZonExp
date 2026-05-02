@@ -88,7 +88,7 @@ export function QuestListScreen({ onNavigate }: QuestListScreenProps) {
   return (
     <div className="min-h-screen flex flex-col relative z-10 pb-20">
       <header className="sticky top-0 z-20 flex items-center justify-between p-4 bg-background/90 backdrop-blur-sm border-b-4 border-border">
-        <button 
+        <button
           onClick={() => onNavigate("quest-map")}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
         >
@@ -103,7 +103,7 @@ export function QuestListScreen({ onNavigate }: QuestListScreenProps) {
       <main className="flex-1 overflow-y-auto p-4">
         <AnimatePresence mode="wait">
           {error && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="p-4 border-pixel-sm bg-destructive text-destructive-foreground text-center"
             >
@@ -115,7 +115,7 @@ export function QuestListScreen({ onNavigate }: QuestListScreenProps) {
           )}
 
           {isLoading && !error && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="flex flex-col items-center justify-center py-20"
             >
@@ -127,7 +127,7 @@ export function QuestListScreen({ onNavigate }: QuestListScreenProps) {
           )}
 
           {!isLoading && !error && quests.length === 0 && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               className="text-center py-20 bg-muted border-pixel-sm"
             >
@@ -137,7 +137,7 @@ export function QuestListScreen({ onNavigate }: QuestListScreenProps) {
           )}
 
           {!isLoading && !error && quests.length > 0 && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
@@ -145,7 +145,7 @@ export function QuestListScreen({ onNavigate }: QuestListScreenProps) {
                 <div>
                   <div className="flex items-center gap-2 mb-3 bg-secondary border-pixel-sm p-2">
                     <Target className="w-6 h-6 text-primary" />
-                    <h2 className="text-sm font-press-start text-secondary-foreground text-pixel-shadow flex-1">
+                    <h2 className="text-sm font-press-start text-foreground text-pixel-shadow flex-1">
                       АКТИВНЫЕ
                     </h2>
                     <span className="font-bold text-primary bg-background border-pixel-sm px-2">
@@ -176,13 +176,13 @@ export function QuestListScreen({ onNavigate }: QuestListScreenProps) {
                     {availableQuests.length}
                   </span>
                 </div>
-                
+
                 {availableQuests.length === 0 && (
                   <div className="p-4 bg-muted border-pixel-sm text-center">
                     <p className="font-bold">Все доступные квесты приняты!</p>
                   </div>
                 )}
-                
+
                 <div className="space-y-4">
                   {availableQuests.map((quest) => (
                     <QuestCard
@@ -239,7 +239,7 @@ interface QuestCardProps {
 
 function QuestCard({ quest, formatDistance, onDetails, isActive }: QuestCardProps) {
   const intensity = intensityMap[quest.intensity]
-  
+
   return (
     <Card className={`p-0 overflow-hidden border-pixel ${isActive ? 'bg-secondary' : 'bg-card'}`}>
       <div className={`p-2 border-b-4 border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 ${isActive ? 'bg-primary' : 'bg-muted'}`}>
@@ -253,32 +253,35 @@ function QuestCard({ quest, formatDistance, onDetails, isActive }: QuestCardProp
           <span className="text-sm font-press-start text-primary text-pixel-shadow">+{quest.xpReward} XP</span>
         </div>
       </div>
-      
+
       <div className="p-3 sm:p-4 bg-[url('/pixel-pattern.png')] bg-repeat bg-[length:16px_16px]">
         <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-4">
           <div className="bg-background border-pixel-sm p-2 flex flex-col sm:flex-row items-center sm:items-center justify-center sm:justify-start gap-1 sm:gap-2 text-center sm:text-left">
-            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-accent shrink-0" />
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-700 shrink-0" />
             <span className="font-bold text-xs sm:text-base leading-none">{quest.durationMinutes} мин</span>
           </div>
-          
+
           <div className="bg-background border-pixel-sm p-2 flex flex-col sm:flex-row items-center sm:items-center justify-center sm:justify-start gap-1 sm:gap-2 text-center sm:text-left">
             <MapPin className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
             <span className="font-bold text-xs sm:text-base leading-none">{formatDistance(quest)}</span>
           </div>
-          
+
           <div className={`col-span-2 bg-background border-pixel-sm p-2 flex items-center gap-2 border-l-4 sm:border-l-8 ${intensity.border}`}>
             <span className={`w-2 h-2 sm:w-3 sm:h-3 ${intensity.color} border-pixel-sm shrink-0`} />
-            <span className={`font-bold text-[10px] sm:text-sm ${intensity.text}`}>{intensity.label} СЛОЖНОСТЬ</span>
+            <span className={`font-bold text-[10px] sm:text-sm ${intensity.text}`}>{intensity.label}</span>
           </div>
         </div>
-        
-        <Button 
-          className={`w-full h-14 border-pixel-sm font-press-start text-sm hover:scale-[1.02] transition-transform ${
-            isActive ? 'bg-accent text-accent-foreground hover:bg-accent/90' : 'bg-primary text-primary-foreground hover:bg-primary/90'
-          }`} 
+
+        <Button
+          className={`w-full h-14 border-pixel-sm font-press-start text-sm hover:scale-[1.02] transition-transform ${isActive ? 'bg-accent text-accent-foreground hover:bg-accent/90' : 'bg-primary text-primary-foreground hover:bg-primary/90'
+            }`}
           onClick={onDetails}
         >
-          {isActive ? 'ПРОДОЛЖИТЬ' : 'ПОДРОБНЕЕ'} <ChevronRight className="w-6 h-6 ml-1" />
+          {isActive ? (
+            <span>ПРОДОЛЖИТЬ</span>
+          ) : (
+            <span className="text-amber-950 font-black">ПОДРОБНЕЕ</span>
+          )} <ChevronRight className="w-6 h-6 ml-1" />
         </Button>
       </div>
     </Card>

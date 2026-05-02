@@ -6,7 +6,7 @@ import './globals.css'
 
 const vt323 = VT323({
   weight: '400',
-  subsets: ['latin', 'cyrillic'],
+  subsets: ['latin'],
   variable: '--font-vt323',
 })
 
