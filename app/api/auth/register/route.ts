@@ -63,16 +63,20 @@ export async function POST(req: Request) {
 
     await db.insert(progress).values({ userId })
 
-    // Асинхронно отправляем данные в CRM Bitrix24
-    // Мы не ждем окончания await (или оборачиваем в catch), чтобы ответ отдавался быстро
-    sendUserToCRM({
-      email: normalizedEmail,
-      username,
-      characterClass,
-      xp: 0,
-      guild: "Новобранец", // Начальная фракция
-      registrationDate: new Date().toISOString(),
-    }).catch(err => console.error("Unhandled CRM error", err))
+    // Отправляем данные в CRM Bitrix24
+    // На Vercel (Serverless) ОБЯЗАТЕЛЬНО использовать await, иначе процесс будет убит до завершения запроса
+    try {
+      await sendUserToCRM({
+        email: normalizedEmail,
+        username,
+        characterClass,
+        xp: 0,
+        guild: "Новобранец",
+        registrationDate: new Date().toISOString(),
+      })
+    } catch (err) {
+      console.error("CRM Integration Error:", err)
+    }
 
     return Response.json({ userId })
   } catch (error) {
