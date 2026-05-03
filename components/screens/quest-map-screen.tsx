@@ -67,23 +67,33 @@ export function QuestMapScreen({ onNavigate }: QuestMapScreenProps) {
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
 
-  const fetchQuests = useCallback(async (forceRefresh = false) => {
-    try {
-      if (!forceRefresh) {
-        try {
-          const cached = sessionStorage.getItem("quests_data")
-          if (cached) {
-            const { data, timestamp } = JSON.parse(cached)
-            if (Date.now() - timestamp < 60000 && Array.isArray(data)) {
-              setQuests(data)
-              setActiveCount(data.filter((quest: Quest) => quest.isAssigned).length)
-              setIsLoading(false)
-              return
-            }
-          }
-        } catch {}
-      }
+  const lastFetchLocation = useRef<[number, number] | null>(null)
+  const lastFetchTime = useRef<number>(0)
 
+  const fetchQuests = useCallback(async (forceRefresh = false) => {
+    // Если это не принудительное обновление, проверяем нужно ли оно
+    if (!forceRefresh && userLocation) {
+      const now = Date.now()
+      const timeSinceLastFetch = now - lastFetchTime.current
+      
+      // Не обновляем чаще чем раз в 30 секунд
+      if (timeSinceLastFetch < 30000) return
+
+      // Проверяем дистанцию (если переместились меньше чем на 50м - не обновляем)
+      if (lastFetchLocation.current) {
+        const dist = Math.sqrt(
+          Math.pow(userLocation[0] - lastFetchLocation.current[0], 2) + 
+          Math.pow(userLocation[1] - lastFetchLocation.current[1], 2)
+        )
+        // Примерная проверка (0.0005 градуса ~ 50м)
+        if (dist < 0.0005 && timeSinceLastFetch < 300000) return 
+      }
+    }
+
+    try {
+      // Показываем загрузку только при первом входе или принудительном обновлении
+      if (quests.length === 0 || forceRefresh) setIsLoading(true)
+      
       const url = userLocation
         ? `/api/quests?lng=${userLocation[0]}&lat=${userLocation[1]}`
         : "/api/quests"
@@ -95,7 +105,9 @@ export function QuestMapScreen({ onNavigate }: QuestMapScreenProps) {
       const questsList = Array.isArray(data.quests) ? data.quests : []
       setQuests(questsList)
       setActiveCount(questsList.filter((quest: Quest) => quest.isAssigned).length)
-      sessionStorage.setItem("quests_data", JSON.stringify({ data: questsList, timestamp: Date.now() }))
+      
+      lastFetchLocation.current = userLocation
+      lastFetchTime.current = Date.now()
       setError(null)
     } catch (err) {
       console.error("[QuestMap] Failed to fetch quests:", err)
@@ -103,7 +115,7 @@ export function QuestMapScreen({ onNavigate }: QuestMapScreenProps) {
     } finally {
       setIsLoading(false)
     }
-  }, [userLocation])
+  }, [userLocation, quests.length])
 
   useEffect(() => {
     fetchQuests()

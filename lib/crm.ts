@@ -33,6 +33,8 @@ export async function sendUserToCRM(data: CRMLeadData) {
 
   try {
     const endpoint = `${webhookUrl.replace(/\/$/, '')}/crm.contact.add.json`
+    
+    console.log(`[DEBUG CRM] Attempting to send to: ${endpoint.split('/rest/')[0]}/rest/... (hidden key)`)
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -47,23 +49,25 @@ export async function sendUserToCRM(data: CRMLeadData) {
           EMAIL: [
             { VALUE: data.email, VALUE_TYPE: "WORK" }
           ],
-          UF_CRM_1777798048039: data.characterClass, // Поле "Класс"
-          UF_CRM_1777806255950: data.xp,                         // Поле "XP" (Число)
-          UF_CRM_1777806269512: data.guild,                   // Поле "Гильдия" (Строка)
-          UF_CRM_1777806157391: data.registrationDate,     // Поле "Дата регистрации" (Дата)
+          UF_CRM_1777798048039: data.characterClass,
+          UF_CRM_1777806255950: data.xp,
+          UF_CRM_1777806269512: data.guild,
+          UF_CRM_1777806157391: data.registrationDate,
         },
         params: { REGISTER_SONET_EVENT: "Y" }
       })
     })
 
+    console.log(`[DEBUG CRM] Bitrix24 Response Status: ${response.status}`)
+
     if (!response.ok) {
       const errorData = await response.text()
-      console.error("CRM Bitrix24 API Error:", response.status, errorData)
+      console.error("[DEBUG CRM] Bitrix24 Error Payload:", errorData)
       return false
     }
 
     const result = await response.json()
-    console.log("Successfully sent data to Bitrix24. Contact ID:", result.result)
+    console.log("[DEBUG CRM] Success! Contact ID:", result.result)
     return true
   } catch (error) {
     console.error("Failed to send data to CRM:", error)

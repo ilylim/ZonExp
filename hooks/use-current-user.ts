@@ -26,6 +26,12 @@ export function useCurrentUser() {
       return
     }
 
+    // Если профиль уже загружен и соответствует текущему пользователю, не запрашиваем снова
+    if (profile && profile.userId === session.user.id) {
+      setIsLoading(false)
+      return
+    }
+
     const fetchProfile = async () => {
       try {
         const res = await fetch("/api/me/progress")
@@ -48,7 +54,7 @@ export function useCurrentUser() {
     }
 
     fetchProfile()
-  }, [session, status])
+  }, [session, status, profile])
 
   return {
     user: profile,
