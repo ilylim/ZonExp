@@ -250,8 +250,8 @@ export function QuestMapScreen({ onNavigate }: QuestMapScreenProps) {
     <div className="relative min-h-screen bg-transparent flex flex-col pointer-events-none">
       <header className="sticky top-0 flex items-center justify-between p-4 bg-background/90 backdrop-blur-sm border-b-4 border-border z-50 pointer-events-auto">
         <button 
-          onClick={() => window.location.reload()}
-          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+          onClick={() => {}} 
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-default"
         >
           <img src="/emblem-pixel.png" alt="Emblem" className="w-10 h-10 object-contain" />
           <span className="font-press-start text-xl text-pixel-shadow text-primary hidden sm:block uppercase">ZonExp</span>

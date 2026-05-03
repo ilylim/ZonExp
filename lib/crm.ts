@@ -87,7 +87,10 @@ export async function sendSupportTicketToCRM(data: CRMSupportData) {
   }
 
   try {
-    const endpoint = `${webhookUrl.replace(/\/$/, '')}/tasks.task.add`
+    // Возвращаем .json для строгой совместимости
+    const endpoint = `${webhookUrl.replace(/\/$/, '')}/tasks.task.add.json`
+
+    console.log(`[DEBUG Support] Sending to: ${endpoint.split('/rest/')[0]}/rest/...`)
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -98,23 +101,22 @@ export async function sendSupportTicketToCRM(data: CRMSupportData) {
         fields: {
           TITLE: `[Support] ${data.subject}`,
           DESCRIPTION: `Отправитель: ${data.email}\n\nСообщение: ${data.message}`,
-          TAGS: ["support"],
-          RESPONSIBLE_ID: "1"
+          TAGS: ["support"]
         }
       })
     })
 
-    const result = await response.json()
+    const result = await response.json().catch(() => ({ error: "Invalid JSON response" }))
 
     if (!response.ok) {
-      console.error("CRM Bitrix24 Task API Error Response:", result)
+      console.error("[DEBUG Support] Bitrix24 Task API Error:", response.status, result)
       return false
     }
 
-    console.log("Successfully created support task in Bitrix24. Task ID:", result.result?.task?.id || "unknown")
+    console.log("[DEBUG Support] Success! Task ID:", result.result?.task?.id || "created")
     return true
   } catch (error) {
-    console.error("Critical error while calling Bitrix24 Task API:", error)
+    console.error("[DEBUG Support] Fatal error:", error)
     return false
   }
 }

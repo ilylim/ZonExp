@@ -193,29 +193,35 @@ export function MapProvider({ children }: { children: React.ReactNode }) {
     reveal()
   }, [userLocation, refreshExploration])
 
+  const contextValue = React.useMemo(() => ({
+    map, 
+    setMap, 
+    viewMode, 
+    setViewMode, 
+    flyTo,
+    exploration,
+    refreshExploration,
+    userLocation,
+    setUserLocation,
+    locationAccuracy,
+    setLocationAccuracy,
+    isSelectingLocation,
+    setIsSelectingLocation,
+    tempLocation,
+    setTempLocation,
+    isGettingGPS,
+    setIsGettingGPS,
+    gpsError,
+    setGpsError,
+    handleGetGPS
+  }), [
+    map, setMap, viewMode, flyTo, exploration, refreshExploration, 
+    userLocation, setUserLocation, locationAccuracy, isSelectingLocation, 
+    tempLocation, isGettingGPS, gpsError, handleGetGPS
+  ])
+
   return (
-    <MapContext.Provider value={{ 
-      map, 
-      setMap, 
-      viewMode, 
-      setViewMode, 
-      flyTo,
-      exploration,
-      refreshExploration,
-      userLocation,
-      setUserLocation,
-      locationAccuracy,
-      setLocationAccuracy,
-      isSelectingLocation,
-      setIsSelectingLocation,
-      tempLocation,
-      setTempLocation,
-      isGettingGPS,
-      setIsGettingGPS,
-      gpsError,
-      setGpsError,
-      handleGetGPS
-    }}>
+    <MapContext.Provider value={contextValue}>
       {children}
     </MapContext.Provider>
   )

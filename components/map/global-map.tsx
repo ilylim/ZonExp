@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, memo } from "react"
 import maplibregl from "maplibre-gl"
 import { useMap } from "./map-provider"
 import { cn } from "@/lib/utils"
@@ -17,7 +17,7 @@ const FOG_SOURCE_ID = "exploration-fog"
 const FOG_LAYER_ID = "exploration-fog-fill"
 const FOG_OUTLINE_LAYER_ID = "exploration-fog-outline"
 
-export function GlobalMap() {
+export const GlobalMap = memo(function GlobalMap() {
   const mapContainer = useRef<HTMLDivElement>(null)
   const mapInitialized = useRef(false)
   const userMarkerRef = useRef<maplibregl.Marker | null>(null)
@@ -39,6 +39,7 @@ export function GlobalMap() {
     handleGetGPS
   } = useMap()
 
+  // Инициализация карты - только один раз
   useEffect(() => {
     if (!mapContainer.current || mapInitialized.current) return
     mapInitialized.current = true
@@ -50,7 +51,10 @@ export function GlobalMap() {
         sources: {
           osm: {
             type: "raster",
-            tiles: ["https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png"],
+            tiles: [
+              "https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", 
+              "https://b.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            ],
             tileSize: 256,
             attribution: "© OpenStreetMap",
           },
@@ -60,70 +64,61 @@ export function GlobalMap() {
       center: KRASNOYARSK_CENTER,
       zoom: 12,
       maxBounds: KRASNOYARSK_BOUNDS,
-      // В режиме header можно отключить dragPan для того, чтобы скролл работал лучше (по желанию). Но пока оставим как есть.
+      fadeDuration: 0
     })
 
     m.on("load", () => {
       setMap(m)
-      m.resize()
+      setTimeout(() => m.resize(), 100)
     })
 
     return () => {}
-  }, [map, setMap])
+  }, [setMap])
 
-  // РЕНДЕРИНГ ТУМАНА
+  // РЕНДЕРИНГ ТУМАНА (только при изменении данных)
   useEffect(() => {
-    if (!map || !exploration) return
+    if (!map || !exploration || !map.isStyleLoaded()) return
 
-    const syncFog = () => {
-      if (!map) return
-      const fogData = exploration.fog
-      const existingSource = map.getSource(FOG_SOURCE_ID) as maplibregl.GeoJSONSource
-      
-      if (existingSource) {
-        existingSource.setData(fogData as any)
-      } else {
-        map.addSource(FOG_SOURCE_ID, { type: "geojson", data: fogData as any })
-        map.addLayer({
-          id: FOG_LAYER_ID,
-          type: "fill",
-          source: FOG_SOURCE_ID,
-          paint: { "fill-color": "#020617", "fill-opacity": 0.72 },
-        })
-        map.addLayer({
-          id: FOG_OUTLINE_LAYER_ID,
-          type: "line",
-          source: FOG_SOURCE_ID,
-          paint: { "line-color": "#0f172a", "line-width": 1, "line-opacity": 0.45 },
-        })
-      }
-      
-      if (map.getLayer(FOG_LAYER_ID)) map.moveLayer(FOG_LAYER_ID)
-      if (map.getLayer(FOG_OUTLINE_LAYER_ID)) map.moveLayer(FOG_OUTLINE_LAYER_ID)
+    const fogData = exploration.fog
+    const existingSource = map.getSource(FOG_SOURCE_ID) as maplibregl.GeoJSONSource
+    
+    if (existingSource) {
+      existingSource.setData(fogData as any)
+    } else {
+      map.addSource(FOG_SOURCE_ID, { type: "geojson", data: fogData as any })
+      map.addLayer({
+        id: FOG_LAYER_ID,
+        type: "fill",
+        source: FOG_SOURCE_ID,
+        paint: { "fill-color": "#020617", "fill-opacity": 0.72 },
+      })
+      map.addLayer({
+        id: FOG_OUTLINE_LAYER_ID,
+        type: "line",
+        source: FOG_SOURCE_ID,
+        paint: { "line-color": "#0f172a", "line-width": 1, "line-opacity": 0.45 },
+      })
     }
-
-    if (map.isStyleLoaded()) syncFog()
-    else map.once("load", syncFog)
   }, [map, exploration])
 
+  // Оптимизированный ресайз
   useEffect(() => {
-    if (map) {
-      setTimeout(() => map.resize(), 300)
+    if (map && viewMode !== "hidden") {
+      const timer = setTimeout(() => map.resize(), 150)
+      return () => clearTimeout(timer)
     }
   }, [map, viewMode])
 
-  // Управление маркером пользователя
+  // Управление маркером пользователя (без пересоздания)
   useEffect(() => {
-    if (!map) return
-
-    const loc = userLocation || KRASNOYARSK_CENTER
-
+    if (!map || !userLocation) return
+    
     if (!userMarkerRef.current) {
       const el = document.createElement("div")
       el.innerHTML = '<div style="width:24px;height:24px;background:#3b82f6;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3)"></div>'
-      userMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat(loc).addTo(map)
+      userMarkerRef.current = new maplibregl.Marker({ element: el }).setLngLat(userLocation).addTo(map)
     } else {
-      userMarkerRef.current.setLngLat(loc)
+      userMarkerRef.current.setLngLat(userLocation)
     }
   }, [map, userLocation])
 
@@ -237,4 +232,4 @@ export function GlobalMap() {
       )}
     </div>
   )
-}
+})
