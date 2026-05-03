@@ -20,13 +20,13 @@ const characterClasses = [
   { id: "warrior", icon: Sword, name: "Воин", color: "bg-red-600 border-red-900", text: "text-red-600 dark:text-red-400", description: "Высокая защита и урон в ближнем бою." },
   { id: "mage", icon: Sparkles, name: "Маг", color: "bg-blue-600 border-blue-900", text: "text-blue-600 dark:text-blue-400", description: "Могущественные заклинания и контроль маны." },
   { id: "ranger", icon: Crosshair, name: "Стрелок", color: "bg-green-600 border-green-900", text: "text-green-600 dark:text-green-400", description: "Дальний бой и смертельная точность." },
-  { id: "druid", icon: PawPrint, name: "Друид", color: "bg-amber-600 border-amber-900", text: "text-amber-600 dark:text-amber-400", description: "Связь с природой и призыв существ." },
+  { id: "shapeshifter", icon: PawPrint, name: "Друид", color: "bg-amber-600 border-amber-900", text: "text-amber-600 dark:text-amber-400", description: "Связь с природой и призыв существ." },
 ]
 
 export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeScreenProps) {
   const [step, setStep] = useState<OnboardingStep>("hero")
   const [selectedClass, setSelectedClass] = useState(characterClasses[0])
-  
+
   // Registration form
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
@@ -51,9 +51,9 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          email, 
-          password, 
+        body: JSON.stringify({
+          email,
+          password,
           username: username.trim(),
           characterClass: selectedClass.id,
         }),
@@ -98,7 +98,7 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
     <div className="min-h-screen flex flex-col relative z-10">
       {/* HEADER */}
       <header className="sticky top-0 z-20 p-4 bg-background/80 backdrop-blur-md border-b-4 border-border flex items-center justify-between">
-        <button 
+        <button
           onClick={() => setStep("hero")}
           className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer text-left"
         >
@@ -111,7 +111,7 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
         <AnimatePresence mode="wait">
           {/* HERO SECTION */}
           {step === "hero" && (
-            <motion.div 
+            <motion.div
               key="hero"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -119,15 +119,15 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
               className="text-center space-y-8 w-full border-pixel p-8 relative overflow-hidden"
             >
               <div className="absolute inset-0 bg-secondary/10 pointer-events-none" />
-              
-              <motion.div 
-                animate={{ y: [0, -10, 0] }} 
+
+              <motion.div
+                animate={{ y: [0, -10, 0] }}
                 transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
                 className="mx-auto flex items-center justify-center relative z-10"
               >
                 <img src="/logo-pixel.png" alt="ZonExp Logo" className="w-48 h-48 sm:w-64 sm:h-64 object-contain drop-shadow-[0_10px_10px_rgba(0,0,0,0.3)]" />
               </motion.div>
-              
+
               <div className="space-y-4 relative z-10">
                 <h1 className="text-2xl md:text-3xl font-press-start text-pixel-shadow text-primary leading-relaxed">
                   ТВОЙ ГОРОД — ТВОЯ RPG
@@ -136,15 +136,15 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
                   Преврати прогулки в эпичное приключение. Выполняй квесты, сражайся с ленью, получай лут!
                 </p>
               </div>
-              
+
               <div className="space-y-4 relative z-10 pt-4">
-                <Button 
+                <Button
                   onClick={() => setStep("class")}
-                  className="w-full h-16 text-xl border-pixel-sm bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] transition-transform font-press-start" 
+                  className="w-full h-16 text-xl border-pixel-sm bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-[1.02] transition-transform font-press-start"
                 >
                   НАЧАТЬ ИГРУ
                 </Button>
-                <button 
+                <button
                   className="w-full h-12 text-lg text-secondary dark:text-secondary-foreground hover:underline font-bold"
                   onClick={() => onNavigate("login")}
                 >
@@ -156,7 +156,7 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
 
           {/* CLASS SELECTION */}
           {step === "class" && (
-            <motion.div 
+            <motion.div
               key="class"
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
@@ -166,7 +166,7 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
               <div className="border-pixel p-4 text-center bg-secondary">
                 <h2 className="text-xl font-press-start text-pixel-shadow text-secondary-foreground">ВЫБЕРИ КЛАСС</h2>
               </div>
-              
+
               <div className="space-y-3">
                 {characterClasses.map((cls) => (
                   <motion.button
@@ -195,15 +195,15 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
               </div>
 
               <div className="flex gap-4 pt-4">
-                <Button 
-                  variant="outline" 
-                  className="w-1/3 h-14 border-pixel-sm text-lg font-bold" 
+                <Button
+                  variant="outline"
+                  className="w-1/3 h-14 border-pixel-sm text-lg font-bold"
                   onClick={() => setStep("hero")}
                 >
                   НАЗАД
                 </Button>
-                <Button 
-                  className="w-2/3 h-14 border-pixel-sm bg-primary text-primary-foreground font-press-start text-sm hover:bg-primary/90 hover:scale-[1.02] transition-transform" 
+                <Button
+                  className="w-2/3 h-14 border-pixel-sm bg-primary text-primary-foreground font-press-start text-sm hover:bg-primary/90 hover:scale-[1.02] transition-transform"
                   onClick={() => setStep("register")}
                 >
                   ВЫБРАТЬ
@@ -214,7 +214,7 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
 
           {/* REGISTRATION FORM */}
           {step === "register" && (
-            <motion.div 
+            <motion.div
               key="register"
               initial={{ opacity: 0, x: 50 }}
               animate={{ opacity: 1, x: 0 }}
@@ -314,11 +314,11 @@ export function WelcomeScreen({ onNavigate, onLogout, onSetUserName }: WelcomeSc
                   >
                     {isLoading ? "КОВКА..." : "СОЗДАТЬ"}
                   </Button>
-                  
-                  <Button 
+
+                  <Button
                     type="button"
-                    variant="outline" 
-                    className="w-full h-12 border-pixel-sm font-bold text-lg" 
+                    variant="outline"
+                    className="w-full h-12 border-pixel-sm font-bold text-lg"
                     onClick={() => setStep("class")}
                   >
                     НАЗАД

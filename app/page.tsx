@@ -204,6 +204,7 @@ function AppContent() {
           onNavigate={navigate}
           onLogout={handleLogout}
           userName={user?.username || "Герой"}
+          userEmail={user?.email || ""}
           userLevel={user?.level || 1}
           userXp={user?.xp || 0}
           userCompletedQuests={user?.completedQuests || 0}

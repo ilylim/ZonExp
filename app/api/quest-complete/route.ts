@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth"
 import { getDb } from "@/db"
 import { progress, quests, questSessions, userQuestAssignments } from "@/db/schema"
 import { z } from "zod"
+import { updateUserProgressInCRM } from "@/lib/crm"
 
 export const dynamic = "force-dynamic"
 
@@ -146,6 +147,16 @@ export async function POST(req: Request) {
         )
       )
   })
+  // Асинхронно обновляем прогресс в CRM
+  executeWithRetry(async () => {
+    const userProgress = await db.query.progress.findFirst({
+      where: eq(progress.userId, session.user.id),
+      columns: { xp: true }
+    })
+    if (userProgress && session.user.email) {
+      await updateUserProgressInCRM(session.user.email, { xp: userProgress.xp })
+    }
+  }).catch(err => console.error("Failed to sync XP with CRM", err))
 
   return Response.json({
     ok: true,

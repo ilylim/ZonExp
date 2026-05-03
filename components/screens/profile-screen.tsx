@@ -11,6 +11,7 @@ interface ProfileScreenProps {
   onNavigate: (screen: Screen) => void
   onLogout: () => void
   userName: string
+  userEmail: string
   userLevel: number
   userXp: number
   userCompletedQuests: number
@@ -32,14 +33,53 @@ const badges = [
   { id: 6, icon: Shield, name: "Страж Города", unlocked: false },
 ]
 
-export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userXp, userCompletedQuests }: ProfileScreenProps) {
+export function ProfileScreen({ onNavigate, onLogout, userName, userEmail, userLevel, userXp, userCompletedQuests }: ProfileScreenProps) {
   const xpForNextLevel = userLevel * 500
   const xpPercentage = Math.min((userXp / xpForNextLevel) * 100, 100)
   const [showSettings, setShowSettings] = useState(false)
+  const [showSupportForm, setShowSupportForm] = useState(false)
+  const [supportSubject, setSupportSubject] = useState("")
+  const [supportMessage, setSupportMessage] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [supportStatus, setSupportStatus] = useState<"idle" | "success" | "error">("idle")
 
   const totalSteps = userCompletedQuests * 1875
   const totalDistance = (userCompletedQuests * 1.8).toFixed(1)
   const userDaysInGame = Math.max(Math.floor(userXp / 100), 1) // Calculated or mock value
+
+  const handleSupportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    setSupportStatus("idle")
+
+    try {
+      const response = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userEmail,
+          subject: supportSubject,
+          message: supportMessage,
+        }),
+      })
+
+      if (response.ok) {
+        setSupportStatus("success")
+        setSupportSubject("")
+        setSupportMessage("")
+        setTimeout(() => {
+          setShowSupportForm(false)
+          setSupportStatus("idle")
+        }, 2000)
+      } else {
+        setSupportStatus("error")
+      }
+    } catch (error) {
+      setSupportStatus("error")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col relative z-10 pb-20">
@@ -93,7 +133,7 @@ export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userX
                 </button>
 
                 <button 
-                  onClick={() => {}} 
+                  onClick={() => setShowSupportForm(true)} 
                   className="w-full flex items-center justify-between min-h-[3.5rem] py-2 px-4 border-pixel-sm bg-background hover:bg-muted font-bold text-xs sm:text-base text-left whitespace-normal transition-colors leading-tight"
                 >
                   <span className="flex-1 pr-2">Совет Мудрецов (Поддержка)</span>
@@ -111,6 +151,89 @@ export function ProfileScreen({ onNavigate, onLogout, userName, userLevel, userX
                   </div>
                   <ChevronRight className="w-5 h-5" />
                 </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SUPPORT FORM MODAL */}
+      <AnimatePresence>
+        {showSupportForm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 z-[60] flex items-center justify-center p-4 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-card w-full max-w-md border-pixel p-1 shadow-2xl"
+            >
+              <div className="bg-primary p-4 border-b-4 border-border flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Shield className="w-6 h-6 text-primary-foreground" />
+                  <h2 className="text-sm sm:text-lg font-press-start text-primary-foreground text-pixel-shadow">СОВЕТ МУДРЕЦОВ</h2>
+                </div>
+                <button onClick={() => setShowSupportForm(false)} className="p-1 hover:bg-black/20 transition-colors">
+                  <X className="w-6 h-6 text-primary-foreground" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-5 bg-secondary">
+                {supportStatus === "success" ? (
+                  <div className="text-center py-8 space-y-4">
+                    <div className="w-16 h-16 bg-emerald-600 border-pixel-sm mx-auto flex items-center justify-center">
+                      <Sparkles className="w-10 h-10 text-white" />
+                    </div>
+                    <p className="font-press-start text-xs text-emerald-600 text-pixel-shadow uppercase">Весть отправлена!</p>
+                    <p className="text-sm font-bold">Мудрецы услышали твой зов и скоро дадут ответ.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSupportSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-press-start text-secondary-foreground text-pixel-shadow uppercase">Суть обращения</label>
+                      <input
+                        type="text"
+                        placeholder="Тема сообщения..."
+                        value={supportSubject}
+                        onChange={(e) => setSupportSubject(e.target.value)}
+                        className="w-full p-3 border-pixel-sm bg-background focus:outline-none focus:border-primary font-bold"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-press-start text-secondary-foreground text-pixel-shadow uppercase">Твое послание</label>
+                      <textarea
+                        placeholder="Опиши свою проблему или идею..."
+                        value={supportMessage}
+                        onChange={(e) => setSupportMessage(e.target.value)}
+                        rows={4}
+                        className="w-full p-3 border-pixel-sm bg-background focus:outline-none focus:border-primary font-bold resize-none"
+                        required
+                        disabled={isSubmitting}
+                      />
+                    </div>
+
+                    {supportStatus === "error" && (
+                      <p className="text-destructive font-bold text-sm text-center">
+                        Голубь не долетел... Ошибка при отправке.
+                      </p>
+                    )}
+
+                    <Button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full h-14 border-pixel-sm bg-primary text-primary-foreground font-press-start text-xs hover:bg-primary/90 transition-all text-pixel-shadow"
+                    >
+                      {isSubmitting ? "ОТПРАВКА..." : "ОТПРАВИТЬ ВЕСТЬ"}
+                    </Button>
+                  </form>
+                )}
               </div>
             </motion.div>
           </motion.div>

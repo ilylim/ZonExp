@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm"
 import { z } from "zod"
 import { getDb } from "@/db"
 import { progress, users } from "@/db/schema"
+import { sendUserToCRM } from "@/lib/crm"
 
 export const dynamic = "force-dynamic"
 
@@ -61,6 +62,17 @@ export async function POST(req: Request) {
     })
 
     await db.insert(progress).values({ userId })
+
+    // Асинхронно отправляем данные в CRM Bitrix24
+    // Мы не ждем окончания await (или оборачиваем в catch), чтобы ответ отдавался быстро
+    sendUserToCRM({
+      email: normalizedEmail,
+      username,
+      characterClass,
+      xp: 0,
+      guild: "Новобранец", // Начальная фракция
+      registrationDate: new Date().toISOString(),
+    }).catch(err => console.error("Unhandled CRM error", err))
 
     return Response.json({ userId })
   } catch (error) {
