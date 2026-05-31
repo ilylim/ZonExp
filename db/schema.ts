@@ -64,6 +64,7 @@ export const quests = pgTable("quests", {
   routeDescription: text("route_description").notNull().default(""),
   // PostGIS geometry (Point, 4326) — единственный источник координат
   location: geometry("location").notNull(),
+  createdBy: text("created_by").references(() => users.userId, { onDelete: "cascade" }),
 })
 
 export const questSessions = pgTable("quest_sessions", {
@@ -157,6 +158,7 @@ export const usersRelations = relations(users, ({ one, many }) => ({
   explorationCells: many(userExplorationCells),
   territoryStats: many(userTerritoryStats),
   questAssignments: many(userQuestAssignments),
+  notifications: many(notifications),
 }))
 
 export const progressRelations = relations(progress, ({ one }) => ({
@@ -189,5 +191,23 @@ export const userQuestAssignmentsRelations = relations(userQuestAssignments, ({ 
   quest: one(quests, {
     fields: [userQuestAssignments.questId],
     references: [quests.questId],
+  }),
+}))
+
+export const notifications = pgTable("notifications", {
+  notificationId: text("notification_id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.userId, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  isRead: boolean("is_read").notNull().default(false),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+})
+
+export const notificationsRelations = relations(notifications, ({ one }) => ({
+  user: one(users, {
+    fields: [notifications.userId],
+    references: [users.userId],
   }),
 }))

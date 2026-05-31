@@ -31,6 +31,14 @@ interface QuestMapScreenProps {
   userName: string
 }
 
+interface Notification {
+  notificationId: string
+  title: string
+  message: string
+  isRead: boolean
+  createdAt: string
+}
+
 interface Quest {
   questId: string
   title: string
@@ -64,6 +72,54 @@ export function QuestMapScreen({ onNavigate }: QuestMapScreenProps) {
   const [activeCount, setActiveCount] = useState(0)
   const [showLimitWarning, setShowLimitWarning] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
+  const [notificationsList, setNotificationsList] = useState<Notification[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications")
+      if (res.ok) {
+        const data = await res.json()
+        const list = data.notifications || []
+        setNotificationsList(list)
+        setUnreadCount(list.filter((n: Notification) => !n.isRead).length)
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 15000)
+    return () => clearInterval(interval)
+  }, [fetchNotifications])
+
+  const handleBellClick = async () => {
+    const nextShow = !showNotifications
+    setShowNotifications(nextShow)
+    
+    if (nextShow && unreadCount > 0) {
+      setUnreadCount(0)
+      setNotificationsList(prev => prev.map(n => ({ ...n, isRead: true })))
+      try {
+        await fetch("/api/notifications", { method: "PATCH" })
+      } catch (err) {
+        console.error("Failed to mark notifications as read:", err)
+      }
+    }
+  }
+
+  const handleClearNotifications = async () => {
+    setNotificationsList([])
+    setUnreadCount(0)
+    try {
+      await fetch("/api/notifications", { method: "DELETE" })
+    } catch (err) {
+      console.error("Failed to clear notifications:", err)
+    }
+  }
+
   const [mapLoaded, setMapLoaded] = useState(false)
   const [mapError, setMapError] = useState<string | null>(null)
 
@@ -136,10 +192,7 @@ export function QuestMapScreen({ onNavigate }: QuestMapScreenProps) {
     if (!map || !mapLoaded) return
     markersRef.current.forEach((m) => m.remove())
     markersRef.current = []
-    const discoveredCells = new Set(exploration?.cells.map((c) => c.h3Index) ?? [])
-    const visibleQuests = exploration?.territories && discoveredCells.size > 0
-      ? quests.filter((q) => discoveredCells.has(getExplorationCellIndex(q.latitude, q.longitude)))
-      : exploration?.territories ? [] : quests
+    const visibleQuests = quests
 
     visibleQuests.forEach((q) => {
       const el = document.createElement("div")
@@ -257,17 +310,49 @@ export function QuestMapScreen({ onNavigate }: QuestMapScreenProps) {
           <span className="font-press-start text-xl text-pixel-shadow text-primary hidden sm:block uppercase">ZonExp</span>
         </button>
         <div className="relative">
-          <Button variant="outline" size="icon" onClick={() => setShowNotifications(!showNotifications)} className="border-pixel-sm">
+          <Button variant="outline" size="icon" onClick={handleBellClick} className="border-pixel-sm relative">
             <Bell className="w-5 h-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-600 border-2 border-black" />
+            )}
           </Button>
           <AnimatePresence>
             {showNotifications && (
               <motion.div 
                 initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
-                className="absolute right-0 top-full mt-2 w-64 bg-card border-pixel p-1 shadow-2xl z-50"
+                className="absolute right-0 top-full mt-2 w-80 bg-card border-pixel p-2 shadow-2xl z-50"
               >
-                <div className="px-4 py-3 text-center font-press-start text-xs text-muted-foreground leading-relaxed">
-                  Почтовый голубь не принес вестей
+                <div className="flex items-center justify-between border-b-2 border-border pb-1 mb-2">
+                  <span className="font-press-start text-[10px] text-primary">Вести</span>
+                  {notificationsList.length > 0 && (
+                    <button 
+                      onClick={handleClearNotifications}
+                      className="font-press-start text-[8px] text-destructive hover:underline cursor-pointer"
+                    >
+                      Очистить
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                  {notificationsList.length === 0 ? (
+                    <div className="px-4 py-3 text-center font-press-start text-xs text-muted-foreground leading-relaxed">
+                      Почтовый голубь не принес вестей
+                    </div>
+                  ) : (
+                    notificationsList.map((n) => (
+                      <div key={n.notificationId} className="bg-background border-pixel-sm p-2 text-left relative overflow-hidden">
+                        <div className="font-press-start text-[9px] text-yellow-500 mb-1 leading-normal">
+                          {n.title}
+                        </div>
+                        <p className="text-sm font-vt323 leading-tight text-card-foreground">
+                          {n.message}
+                        </p>
+                        <span className="text-[9px] text-muted-foreground block mt-1 font-mono">
+                          {new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </motion.div>
             )}

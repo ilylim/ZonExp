@@ -36,6 +36,13 @@
       "when": 1776170847183,
       "tag": "0004_unknown_veda",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780030098962,
+      "tag": "0005_bored_electro",
+      "breakpoints": true
     }
   ]
 }

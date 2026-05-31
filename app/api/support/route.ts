@@ -24,10 +24,49 @@ export async function POST(req: Request) {
       message
     })
 
-    if (success) {
-      return Response.json({ message: "Ticket created successfully" })
+    // ПР-06: Интеграция с BPMS ELMA365 (Web API)
+    let bpmsSuccess = false;
+    try {
+      const elmaUrl = process.env.ELMA365_API_URL;
+      const elmaToken = process.env.ELMA365_API_TOKEN;
+
+      if (elmaUrl && elmaToken && elmaToken !== "your_token_here") {
+        console.log("[DEBUG BPMS] Sending support ticket to ELMA365 Web API...");
+        const elmaRes = await fetch(elmaUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${elmaToken}`
+          },
+          body: JSON.stringify({
+            context: {
+              __name: subject, // Стандартное название карточки
+              opisanie_oshibki: message,
+              id_polzovatelya: email
+            }
+          })
+        });
+        bpmsSuccess = elmaRes.ok;
+        if (bpmsSuccess) {
+          console.log("[DEBUG BPMS] Process successfully started in ELMA365");
+        } else {
+          console.error("[DEBUG BPMS] ELMA365 returned status:", elmaRes.status, await elmaRes.text());
+        }
+      } else {
+        console.log("[DEBUG BPMS] ELMA365 API is not fully configured in .env");
+      }
+    } catch (e) {
+      console.error("[DEBUG BPMS] ELMA365 API Error:", e);
+    }
+
+    if (success || bpmsSuccess) {
+      return Response.json({ 
+        message: "Ticket processed", 
+        crm_triggered: success, 
+        bpms_triggered: bpmsSuccess 
+      })
     } else {
-      return Response.json({ error: "Failed to create support ticket in CRM" }, { status: 500 })
+      return Response.json({ error: "Failed to process support ticket in any service" }, { status: 500 })
     }
   } catch (error) {
     console.error("Support API Error:", error)

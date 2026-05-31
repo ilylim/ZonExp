@@ -101,7 +101,8 @@ export async function sendSupportTicketToCRM(data: CRMSupportData) {
         fields: {
           TITLE: `[Support] ${data.subject}`,
           DESCRIPTION: `Отправитель: ${data.email}\n\nСообщение: ${data.message}`,
-          TAGS: ["support"]
+          TAGS: ["support"],
+          RESPONSIBLE_ID: 1
         }
       })
     })

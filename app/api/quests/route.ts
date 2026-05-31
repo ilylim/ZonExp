@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth"
-import { eq, sql, and } from "drizzle-orm"
+import { eq, sql, and, or, isNull } from "drizzle-orm"
 import { getDb } from "@/db"
-import { quests, userQuestAssignments, questSessions } from "@/db/schema"
+import { quests, userQuestAssignments, questSessions, userExplorationCells } from "@/db/schema"
+import { cellToLatLng } from "h3-js"
 
 export const dynamic = "force-dynamic"
 
@@ -25,6 +26,97 @@ export async function GET(req: Request) {
 
     // Получаем ID выполненных квестов для пользователя (только со статусом 'completed')
     const userId = session?.user?.id
+
+    // Проверяем и генерируем ИИ-квест через ELMA365, если это первый вход за день
+    if (userId) {
+      try {
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+
+        // Проверяем, есть ли уже созданный ИИ-квест для этого пользователя за сегодня
+        const dailyQuestResult = await db
+          .select({ questId: quests.questId })
+          .from(userQuestAssignments)
+          .innerJoin(quests, eq(userQuestAssignments.questId, quests.questId))
+          .where(and(
+            eq(userQuestAssignments.userId, userId),
+            sql`${userQuestAssignments.assignedAt} >= ${todayStart}`,
+            sql`${quests.questId} LIKE 'quest_ai_%'`
+          ))
+          .limit(1)
+
+        if (dailyQuestResult.length === 0) {
+          const elmaUrl = process.env.ELMA365_WEBHOOK_URL
+          if (elmaUrl) {
+            debugLog(`[Quests API] No daily AI quest found for user ${userId}. Triggering ELMA365...`)
+            
+            // Определяем координаты игрока
+            let lat = parseFloat(userLat || "")
+            let lng = parseFloat(userLng || "")
+
+            if (isNaN(lat) || isNaN(lng)) {
+              // Попытаемся взять координаты последней открытой ячейки H3
+              const lastCell = await db
+                .select({ h3Index: userExplorationCells.h3Index })
+                .from(userExplorationCells)
+                .where(eq(userExplorationCells.userId, userId))
+                .orderBy(sql`${userExplorationCells.discoveredAt} DESC`)
+                .limit(1)
+
+              if (lastCell[0]?.h3Index) {
+                try {
+                  const [cellLat, cellLng] = cellToLatLng(lastCell[0].h3Index)
+                  lat = cellLat
+                  lng = cellLng
+                  debugLog(`[Quests API] Got coordinates from last H3 cell: ${lat}, ${lng}`)
+                } catch (h3Err) {
+                  console.error("H3 conversion error:", h3Err)
+                }
+              }
+            }
+
+            // Если координаты все еще не определены — используем центр Красноярска
+            if (isNaN(lat) || isNaN(lng)) {
+              lat = 56.0068
+              lng = 92.8744
+              debugLog(`[Quests API] Using fallback center coordinates: ${lat}, ${lng}`)
+            }
+
+            // Отправляем запрос в ELMA365 с таймаутом 6 секунд
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 6000)
+
+            try {
+              const elmaResponse = await fetch(elmaUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId, lat, lng }),
+                signal: controller.signal
+              })
+              clearTimeout(timeoutId)
+              
+              if (elmaResponse.ok) {
+                debugLog(`[Quests API] ELMA365 successfully triggered for user ${userId}`)
+              } else {
+                console.error(`[Quests API] ELMA365 returned status ${elmaResponse.status}`)
+              }
+            } catch (fetchErr: any) {
+              clearTimeout(timeoutId)
+              if (fetchErr.name === "AbortError") {
+                console.warn(`[Quests API] ELMA365 trigger timed out after 6 seconds`)
+              } else {
+                console.error(`[Quests API] Failed to trigger ELMA365:`, fetchErr)
+              }
+            }
+          } else {
+            debugLog(`[Quests API] ELMA365_WEBHOOK_URL is not set. Skipping AI quest generation.`)
+          }
+        }
+      } catch (err) {
+        console.error("[Quests API] Error during daily AI quest generation process:", err)
+      }
+    }
+
     let completedQuestIds: string[] = []
 
     if (userId) {
@@ -62,7 +154,12 @@ export async function GET(req: Request) {
           distanceMeters: sql<number>`ST_Distance(${quests.location}::geography, ${userPoint}::geography)`.as("distance_meters"),
         })
         .from(quests)
-        .where(eq(quests.isActive, true))
+        .where(and(
+          eq(quests.isActive, true),
+          userId
+            ? or(isNull(quests.createdBy), eq(quests.createdBy, userId))
+            : isNull(quests.createdBy)
+        ))
 
       // Исключаем выполненные квесты
       if (completedQuestIds.length > 0) {
@@ -91,7 +188,11 @@ export async function GET(req: Request) {
         })
         .from(quests)
 
-      let filteredQuests = await baseQuery.where(eq(quests.isActive, true))
+      const userFilter = userId
+        ? or(isNull(quests.createdBy), eq(quests.createdBy, userId))
+        : isNull(quests.createdBy)
+
+      let filteredQuests = await baseQuery.where(and(eq(quests.isActive, true), userFilter))
 
       // Исключаем выполненные квесты
       if (completedQuestIds.length > 0) {
